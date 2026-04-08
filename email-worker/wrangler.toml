@@ -1,0 +1,15 @@
+name = "wishlist-email"
+account_id = "788c79908ddfc22504d941beb4405026"
+main = "worker.js"
+compatibility_date = "2026-04-06"
+compatibility_flags = ["nodejs_compat"]
+
+[[send_email]]
+name = "SEND_EMAIL"
+
+[vars]
+INTERNAL_SECRET = "wishlist-email-internal-2026"
+
+[[routes]]
+pattern = "email.theholidaywishlist.com/*"
+zone_name = "theholidaywishlist.com"
