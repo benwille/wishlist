@@ -7,32 +7,40 @@ export default function CreateUserForm() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setLoading(true);
     setError("");
+    setSuccess("");
 
     const form = new FormData(e.currentTarget);
+    const email = (form.get("email") as string)?.trim();
 
-    const res = await fetch("/api/users", {
+    if (!email) {
+      setError("Email is required to send an invite.");
+      setLoading(false);
+      return;
+    }
+
+    const res = await fetch("/api/users/invite", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         firstName: form.get("firstName"),
         lastName: form.get("lastName"),
-        email: form.get("email") || null,
-        password: form.get("password") || null,
-        isAdmin: form.get("isAdmin") === "on",
+        email,
       }),
     });
 
     if (res.ok) {
+      setSuccess(`Invite sent to ${email}`);
       (e.target as HTMLFormElement).reset();
       router.refresh();
     } else {
       const data = (await res.json()) as { error?: string };
-      setError(data.error || "Failed to create user");
+      setError(data.error || "Failed to send invite");
     }
     setLoading(false);
   }
@@ -52,23 +60,16 @@ export default function CreateUserForm() {
         </div>
       </div>
       <div>
-        <label htmlFor="email" className="block text-sm font-medium">Email <span className="text-muted font-normal">(optional — needed for login)</span></label>
-        <input id="email" name="email" type="email"
-          className="mt-1 block w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary-light" />
+        <label htmlFor="email" className="block text-sm font-medium">Email</label>
+        <input id="email" name="email" type="email" required
+          className="mt-1 block w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary-light"
+          placeholder="They'll get an invite to set up their account" />
       </div>
-      <div>
-        <label htmlFor="password" className="block text-sm font-medium">Password <span className="text-muted font-normal">(optional — can use magic link instead)</span></label>
-        <input id="password" name="password" type="password" minLength={6}
-          className="mt-1 block w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary-light" />
-      </div>
-      <label className="flex items-center gap-2 text-sm">
-        <input type="checkbox" name="isAdmin" className="rounded" />
-        Admin
-      </label>
       <button type="submit" disabled={loading}
         className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-dark disabled:opacity-60">
-        {loading ? "Creating..." : "Create user"}
+        {loading ? "Sending invite..." : "Send invite"}
       </button>
+      {success && <p className="text-sm text-primary">{success}</p>}
       {error && <p className="text-sm text-accent">{error}</p>}
     </form>
   );

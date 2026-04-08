@@ -15,6 +15,13 @@
       "when": 1775626534313,
       "tag": "0001_glossy_thor_girl",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1775626967577,
+      "tag": "0002_boring_bastion",
+      "breakpoints": true
     }
   ]
 }

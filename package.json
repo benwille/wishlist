@@ -12,7 +12,8 @@
     "lint": "eslint",
     "db:generate": "drizzle-kit generate",
     "db:migrate:local": "wrangler d1 migrations apply wishlist --local",
-    "db:migrate:remote": "wrangler d1 migrations apply wishlist --remote"
+    "db:migrate:remote": "wrangler d1 migrations apply wishlist --remote",
+    "postinstall": "sh scripts/postinstall.sh"
   },
   "dependencies": {
     "@opennextjs/cloudflare": "^1.18.0",

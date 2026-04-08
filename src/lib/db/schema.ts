@@ -9,6 +9,8 @@ export const users = sqliteTable("users", {
   isAdmin: integer("is_admin").notNull().default(0),
   active: integer("active").notNull().default(1),
   shareToken: text("share_token").unique(),
+  inviteToken: text("invite_token").unique(),
+  inviteExpiresAt: text("invite_expires_at"),
   createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
   updatedAt: text("updated_at").notNull().$defaultFn(() => new Date().toISOString()),
 });
