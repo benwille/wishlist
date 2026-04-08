@@ -3,6 +3,7 @@ import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { eq, desc } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { exchangeGroups, exchangeGroupMembers, exchangeExclusions, exchangeAssignments, users } from "@/lib/db/schema";
+import RenameGroup from "./RenameGroup";
 import MemberManager from "./MemberManager";
 import ExclusionManager from "./ExclusionManager";
 import RunExchange from "./RunExchange";
@@ -57,7 +58,7 @@ export default async function GroupDetailPage({ params }: { params: Promise<{ id
 
   return (
     <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-8">
-      <h1 className="text-2xl font-bold">{group.name}</h1>
+      <RenameGroup groupId={group.id} currentName={group.name} />
       <p className="mt-1 text-sm text-muted">Manage members, exclusions, and run the exchange.</p>
 
       <div className="mt-6 rounded-xl border border-border bg-surface p-6 shadow-sm">
