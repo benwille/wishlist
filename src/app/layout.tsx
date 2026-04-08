@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Geist } from "next/font/google";
 import "./globals.css";
 import Footer from "@/components/layout/Footer";
+import RegisterSW from "@/components/RegisterSW";
+import InstallBanner from "@/components/InstallBanner";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -19,6 +21,10 @@ export const metadata: Metadata = {
     capable: true,
     statusBarStyle: "default",
     title: "Wishlist",
+  },
+  icons: {
+    icon: "/icon.svg",
+    apple: "/icon-192.png",
   },
 };
 
@@ -39,6 +45,8 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col">
         {children}
         <Footer />
+        <RegisterSW />
+        <InstallBanner />
       </body>
     </html>
   );

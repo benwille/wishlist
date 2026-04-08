@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="96" fill="#059669"/>
+  <g fill="none" stroke="#fff" stroke-width="24" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Gift box body -->
+    <rect x="112" y="256" width="288" height="176" rx="16"/>
+    <!-- Gift box lid -->
+    <rect x="96" y="208" width="320" height="64" rx="12"/>
+    <!-- Vertical ribbon -->
+    <line x1="256" y1="208" x2="256" y2="432"/>
+    <!-- Horizontal ribbon -->
+    <line x1="112" y1="320" x2="400" y2="320"/>
+    <!-- Bow left -->
+    <path d="M256 208c0 0-48-80-96-64s-16 64 16 64"/>
+    <!-- Bow right -->
+    <path d="M256 208c0 0 48-80 96-64s16 64-16 64"/>
+  </g>
+</svg>
