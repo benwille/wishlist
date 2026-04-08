@@ -4,6 +4,7 @@ import { eq, desc } from "drizzle-orm";
 import { getUser } from "@/lib/auth/getUser";
 import { getDb } from "@/lib/db";
 import { users, items } from "@/lib/db/schema";
+import { getVisibleUserIds } from "@/lib/db/queries";
 import Nav from "@/components/layout/Nav";
 import ClaimableItemList from "@/components/wishlist/ClaimableItemList";
 
@@ -15,6 +16,10 @@ export default async function UserListPage({ params }: { params: Promise<{ userI
 
   const [listOwner] = await db.select().from(users).where(eq(users.id, Number(userId))).limit(1);
   if (!listOwner || !listOwner.active) notFound();
+
+  // Check group-based visibility
+  const visibleIds = await getVisibleUserIds(db, currentUser.id, currentUser.isAdmin);
+  if (!visibleIds.includes(listOwner.id)) notFound();
 
   const userItems = await db
     .select()

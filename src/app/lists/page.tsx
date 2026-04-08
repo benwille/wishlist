@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
-import { eq, sql, count } from "drizzle-orm";
+import { eq, inArray, count } from "drizzle-orm";
 import { getUser } from "@/lib/auth/getUser";
 import { getDb } from "@/lib/db";
 import { users, items } from "@/lib/db/schema";
+import { getVisibleUserIds } from "@/lib/db/queries";
 import Nav from "@/components/layout/Nav";
 
 export const metadata = { title: "All Lists" };
@@ -13,6 +14,8 @@ export default async function AllListsPage() {
   const { env } = getCloudflareContext();
   const db = getDb(env.DB);
 
+  const visibleIds = await getVisibleUserIds(db, user.id, user.isAdmin);
+
   const allUsers = await db
     .select({
       id: users.id,
@@ -20,7 +23,7 @@ export default async function AllListsPage() {
       lastName: users.lastName,
     })
     .from(users)
-    .where(eq(users.active, 1))
+    .where(inArray(users.id, visibleIds))
     .orderBy(users.firstName);
 
   const itemCounts = await db
