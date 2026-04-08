@@ -10,6 +10,6 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "mimetext": "^3.0.28"
+    "nodemailer": "^6.10.1"
   }
 }

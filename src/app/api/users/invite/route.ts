@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
   // Send invite email
   const inviteUrl = `https://theholidaywishlist.com/invite/${inviteToken}`;
   await sendEmail(
-    env.SEND_EMAIL,
+    env.EMAIL_WORKER,
     email,
     "You're invited to Wishlist",
     inviteEmailHtml(body.firstName.trim(), inviteUrl)

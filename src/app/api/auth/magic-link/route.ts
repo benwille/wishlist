@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
     const loginUrl = `https://theholidaywishlist.com/api/auth/magic-link/verify?token=${token}${redirectParam}`;
 
     await sendEmail(
-      env.SEND_EMAIL,
+      env.EMAIL_WORKER,
       email,
       "Your Wishlist login link",
       magicLinkEmailHtml(user.firstName, loginUrl)

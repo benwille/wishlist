@@ -14,8 +14,9 @@ database_name = "wishlist"
 database_id = "f28013a8-dcc8-42cd-a370-3a2bc63aec8c"
 migrations_dir = "drizzle/migrations"
 
-[[send_email]]
-name = "SEND_EMAIL"
+[[services]]
+binding = "EMAIL_WORKER"
+service = "wishlist-email"
 
 [[routes]]
 pattern = "theholidaywishlist.com/*"

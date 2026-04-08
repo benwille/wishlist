@@ -1,13 +1,12 @@
-const EMAIL_WORKER_URL = "https://email.theholidaywishlist.com/send";
 const INTERNAL_SECRET = "wishlist-email-internal-2026";
 
 export async function sendEmail(
-  _sendEmailBinding: unknown,
+  emailWorker: Fetcher,
   to: string,
   subject: string,
   html: string
 ) {
-  const res = await fetch(EMAIL_WORKER_URL, {
+  const res = await emailWorker.fetch("https://email-worker/send", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

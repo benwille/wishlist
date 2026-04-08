@@ -1,5 +1,4 @@
-import { EmailMessage } from "cloudflare:email";
-import { createMimeMessage } from "mimetext";
+import nodemailer from "nodemailer";
 
 export default {
   async fetch(request, env) {
@@ -7,27 +6,30 @@ export default {
       return new Response("Method not allowed", { status: 405 });
     }
 
-    // Simple auth check — only accept requests from our service binding
     const authHeader = request.headers.get("X-Internal-Auth");
     if (authHeader !== env.INTERNAL_SECRET) {
       return new Response("Unauthorized", { status: 401 });
     }
 
     try {
-      const { to, subject, html, from } = await request.json();
+      const { to, subject, html } = await request.json();
 
-      const fromAddr = from || "noreply@theholidaywishlist.com";
-      const fromName = "Wishlist";
+      const transporter = nodemailer.createTransport({
+        host: "smtp.gmail.com",
+        port: 465,
+        secure: true,
+        auth: {
+          user: env.GMAIL_USER,
+          pass: env.GMAIL_APP_PASSWORD,
+        },
+      });
 
-      const msg = createMimeMessage();
-      msg.setSender({ name: fromName, addr: fromAddr });
-      msg.setRecipient(to);
-      msg.setSubject(subject);
-      msg.addMessage({ contentType: "text/html", data: html });
-
-      const raw = msg.asRaw();
-      const message = new EmailMessage(fromAddr, to, raw);
-      await env.SEND_EMAIL.send(message);
+      await transporter.sendMail({
+        from: `"Wishlist" <${env.GMAIL_USER}>`,
+        to,
+        subject,
+        html,
+      });
 
       return Response.json({ ok: true });
     } catch (err) {
