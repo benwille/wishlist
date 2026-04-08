@@ -17,7 +17,7 @@ export default async function GroupDetailPage({ params }: { params: Promise<{ id
   const [group] = await db.select().from(exchangeGroups).where(eq(exchangeGroups.id, Number(id))).limit(1);
   if (!group) notFound();
 
-  const allUsers = await db.select({ id: users.id, firstName: users.firstName, lastName: users.lastName, active: users.active, participatesInExchanges: users.participatesInExchanges }).from(users).where(eq(users.active, 1)).orderBy(users.firstName);
+  const allUsers = await db.select({ id: users.id, firstName: users.firstName, lastName: users.lastName, active: users.active }).from(users).where(eq(users.active, 1)).orderBy(users.firstName);
 
   const members = await db
     .select({ userId: exchangeGroupMembers.userId, firstName: users.firstName, lastName: users.lastName })

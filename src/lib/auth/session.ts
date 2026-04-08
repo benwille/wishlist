@@ -11,7 +11,7 @@ export type SessionUser = {
   lastName: string;
   email: string | null;
   isAdmin: boolean;
-  participatesInExchanges: boolean;
+
   active: boolean;
 };
 
@@ -43,7 +43,6 @@ export async function validateSession(db: Database, sessionId: string): Promise<
       lastName: users.lastName,
       email: users.email,
       isAdmin: users.isAdmin,
-      participatesInExchanges: users.participatesInExchanges,
       active: users.active,
     })
     .from(sessions)
@@ -66,7 +65,6 @@ export async function validateSession(db: Database, sessionId: string): Promise<
     lastName: row.lastName,
     email: row.email,
     isAdmin: row.isAdmin === 1,
-    participatesInExchanges: row.participatesInExchanges === 1,
     active: row.active === 1,
   };
 }

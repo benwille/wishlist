@@ -7,7 +7,6 @@ export const users = sqliteTable("users", {
   email: text("email").unique(),
   passwordHash: text("password_hash"),
   isAdmin: integer("is_admin").notNull().default(0),
-  participatesInExchanges: integer("participates_in_exchanges").notNull().default(1),
   active: integer("active").notNull().default(1),
   shareToken: text("share_token").unique(),
   createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
