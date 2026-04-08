@@ -1,0 +1,26 @@
+name = "wishlist"
+account_id = "788c79908ddfc22504d941beb4405026"
+main = ".open-next/worker.js"
+compatibility_date = "2026-04-06"
+compatibility_flags = ["nodejs_compat"]
+
+[assets]
+directory = ".open-next/assets"
+binding = "ASSETS"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "wishlist"
+database_id = "f28013a8-dcc8-42cd-a370-3a2bc63aec8c"
+migrations_dir = "drizzle/migrations"
+
+[[send_email]]
+name = "SEND_EMAIL"
+
+[[routes]]
+pattern = "theholidaywishlist.com/*"
+zone_name = "theholidaywishlist.com"
+
+[[routes]]
+pattern = "www.theholidaywishlist.com/*"
+zone_name = "theholidaywishlist.com"
