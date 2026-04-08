@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
-import { eq, sql } from "drizzle-orm";
+import { eq, sql, count } from "drizzle-orm";
 import { getUser } from "@/lib/auth/getUser";
 import { getDb } from "@/lib/db";
 import { users, items } from "@/lib/db/schema";
@@ -18,11 +18,18 @@ export default async function AllListsPage() {
       id: users.id,
       firstName: users.firstName,
       lastName: users.lastName,
-      itemCount: sql<number>`(SELECT COUNT(*) FROM items WHERE items.user_id = ${users.id})`,
     })
     .from(users)
     .where(eq(users.active, 1))
     .orderBy(users.firstName);
+
+  const itemCounts = await db
+    .select({ userId: items.userId, count: count() })
+    .from(items)
+    .groupBy(items.userId);
+
+  const countMap = new Map(itemCounts.map((r) => [r.userId, r.count]));
+  const usersWithCounts = allUsers.map((u) => ({ ...u, itemCount: countMap.get(u.id) ?? 0 }));
 
   return (
     <>
@@ -32,7 +39,7 @@ export default async function AllListsPage() {
         <p className="mt-1 text-sm text-muted">See what everyone wants.</p>
 
         <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {allUsers.map((u) => (
+          {usersWithCounts.map((u) => (
             <Link
               key={u.id}
               href={u.id === user.id ? "/my-list" : `/lists/${u.id}`}
