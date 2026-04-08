@@ -65,7 +65,7 @@ export default async function GroupDetailPage({ params }: { params: Promise<{ id
         <MemberManager
           groupId={group.id}
           members={members}
-          allUsers={allUsers.filter((u) => u.participatesInExchanges === 1)}
+          allUsers={allUsers}
           memberIds={[...memberIds]}
         />
       </div>

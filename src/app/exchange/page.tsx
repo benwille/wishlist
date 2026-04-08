@@ -62,10 +62,29 @@ export default async function ExchangePage() {
           )}
         </div>
 
+        {/* Your groups */}
+        {myGroups.length > 0 && (
+          <div className="mt-6">
+            <h2 className="text-lg font-semibold mb-3">Your Groups</h2>
+            <div className="flex flex-wrap gap-2">
+              {myGroups.map((g) => (
+                <Link
+                  key={g.groupId}
+                  href={`/exchange/${g.groupId}`}
+                  className="rounded-lg border border-border bg-surface px-4 py-2 text-sm font-medium hover:border-primary transition-all"
+                >
+                  {g.groupName} — View all assignments →
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Your assignments by year */}
         {years.length === 0 ? (
           <p className="mt-8 text-sm text-muted">No exchange assignments yet.</p>
         ) : (
-          <div className="mt-6 space-y-8">
+          <div className="mt-8 space-y-8">
             {years.map((year) => (
               <div key={year}>
                 <h2 className="text-lg font-semibold mb-3">{year}</h2>

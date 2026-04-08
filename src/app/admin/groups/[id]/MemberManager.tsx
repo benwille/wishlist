@@ -59,21 +59,25 @@ export default function MemberManager({
         {members.length === 0 && <p className="text-sm text-muted">No members yet.</p>}
       </div>
 
-      {nonMembers.length > 0 && (
-        <div className="flex gap-2">
-          <select value={selectedUser} onChange={(e) => setSelectedUser(e.target.value)}
-            className="flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary">
-            <option value="">Add a member...</option>
-            {nonMembers.map((u) => (
-              <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>
-            ))}
-          </select>
-          <button onClick={addMember} disabled={loading || !selectedUser}
-            className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-dark disabled:opacity-60">
-            Add
-          </button>
-        </div>
-      )}
+      <div className="flex gap-2">
+        {nonMembers.length > 0 ? (
+          <>
+            <select value={selectedUser} onChange={(e) => setSelectedUser(e.target.value)}
+              className="flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary">
+              <option value="">Add a member...</option>
+              {nonMembers.map((u) => (
+                <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>
+              ))}
+            </select>
+            <button onClick={addMember} disabled={loading || !selectedUser}
+              className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-dark disabled:opacity-60">
+              Add
+            </button>
+          </>
+        ) : (
+          <p className="text-sm text-muted">All eligible users are already in this group. Create new users in Admin → Users.</p>
+        )}
+      </div>
     </div>
   );
 }
