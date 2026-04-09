@@ -1,36 +1,65 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# The Holiday Wishlist
 
-## Getting Started
+A family wishlist app where members can add items they want, browse each other's lists, and claim/purchase items as gifts — keeping it a surprise.
 
-First, run the development server:
+**Live at** [theholidaywishlist.com](https://theholidaywishlist.com)
+
+## Stack
+
+- **Next.js 16** (App Router) with React 19
+- **Cloudflare Workers** via [@opennextjs/cloudflare](https://github.com/opennextjs/opennextjs-cloudflare)
+- **D1** (SQLite) for the database
+- **Drizzle ORM** for queries and migrations
+- **Tailwind CSS 4** for styling
+- **Separate email Worker** using Gmail SMTP via nodemailer (service binding, not HTTP)
+
+## Features
+
+- Magic link authentication (passwordless email login)
+- Add, edit, and remove wishlist items with name, description, link, and price
+- Browse other users' lists and claim/mark items as purchased
+- Group-based visibility — users only see members of shared exchange groups
+- Gift exchange with random assignments and exclusion rules
+- Public share links (read-only, no auth required)
+- PWA with offline fallback and install prompts
+- Admin panel for user and group management
+- Invite system with tokenized links
+- Auto-formatted price display (prepends $, rounds to nearest dollar)
+
+## Development
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+npm run dev           # local Next.js dev server
+npm run preview       # local Cloudflare Workers preview
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Database
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm run db:generate        # generate migrations from schema changes
+npm run db:migrate:local   # apply migrations locally
+npm run db:migrate:remote  # apply migrations to production D1
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### Deploy
 
-## Learn More
+Pushes to `main` trigger GitHub Actions CI/CD, which builds and deploys both the main app and the email worker. Manual deploy:
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+npm run deploy   # builds Next.js + deploys to Cloudflare Workers
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Secrets needed in GitHub Actions: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Worker secrets (set via `wrangler secret put`): `GMAIL_USER`, `GMAIL_APP_PASSWORD`
 
-## Deploy on Vercel
+## Future Ideas
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- **Weekly link checker** — Cron Trigger on a Cloudflare Worker that HEAD-requests all item links, flags 404s/5xx, and notifies the item owner
+- **Push notifications** (Web Push API) — notify users when:
+  - Someone claims or purchases an item on their list
+  - They receive a gift exchange invite
+  - A link on their list is broken
+- **Admin delete user** — needs cascade deletes for sessions/magic_links (FK constraint issue)
+- **Expiring share tokens** — e.g. 7-day TTL, regenerate each time, to limit exposure
