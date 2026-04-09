@@ -3,9 +3,10 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-export default function ItemForm({ userId, item }: {
+export default function ItemForm({ userId, item, onSaved }: {
   userId: number;
   item?: { id: number; name: string; description: string | null; link: string | null; priceRange: string | null };
+  onSaved?: () => void;
 }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -37,6 +38,7 @@ export default function ItemForm({ userId, item }: {
     if (res.ok) {
       if (!isEdit) (e.target as HTMLFormElement).reset();
       router.refresh();
+      onSaved?.();
     } else {
       const r = (await res.json()) as { error?: string };
       setError(r.error || "Something went wrong");
