@@ -3,6 +3,7 @@ import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { eq, desc } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { users, items } from "@/lib/db/schema";
+import { formatPrice } from "@/lib/formatPrice";
 
 export async function generateMetadata({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
@@ -59,7 +60,7 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
                   )}
                   {item.priceRange && (
                     <span className="rounded-full bg-primary-light px-2 py-0.5 text-xs font-medium text-primary-dark">
-                      {/^\d/.test(item.priceRange) ? `$${item.priceRange}` : item.priceRange}
+                      {formatPrice(item.priceRange)}
                     </span>
                   )}
                 </div>

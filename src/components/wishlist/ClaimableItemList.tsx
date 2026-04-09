@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { formatPrice } from "@/lib/formatPrice";
 
 type Item = {
   id: number;
@@ -68,7 +69,7 @@ export default function ClaimableItemList({
                   )}
                   {item.priceRange && (
                     <span className="rounded-full bg-primary-light px-2 py-0.5 text-xs font-medium text-primary-dark">
-                      {/^\d/.test(item.priceRange) ? `$${item.priceRange}` : item.priceRange}
+                      {formatPrice(item.priceRange)}
                     </span>
                   )}
                   {isPurchased && (
