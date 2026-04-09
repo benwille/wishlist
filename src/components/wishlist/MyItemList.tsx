@@ -45,7 +45,7 @@ export default function MyItemList({ items }: { items: Item[] }) {
                 )}
                 {item.priceRange && (
                   <span className="shrink-0 rounded-full bg-primary-light px-2 py-0.5 text-xs font-medium text-primary-dark">
-                    {item.priceRange}
+                    {/^\d/.test(item.priceRange) ? `$${item.priceRange}` : item.priceRange}
                   </span>
                 )}
               </div>

@@ -68,7 +68,7 @@ export default function ClaimableItemList({
                   )}
                   {item.priceRange && (
                     <span className="rounded-full bg-primary-light px-2 py-0.5 text-xs font-medium text-primary-dark">
-                      {item.priceRange}
+                      {/^\d/.test(item.priceRange) ? `$${item.priceRange}` : item.priceRange}
                     </span>
                   )}
                   {isPurchased && (
