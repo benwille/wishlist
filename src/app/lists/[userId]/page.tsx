@@ -5,6 +5,7 @@ import { getUser } from "@/lib/auth/getUser";
 import { getDb } from "@/lib/db";
 import { users, items } from "@/lib/db/schema";
 import { getVisibleUserIds } from "@/lib/db/queries";
+import Link from "next/link";
 import Nav from "@/components/layout/Nav";
 import ClaimableItemList from "@/components/wishlist/ClaimableItemList";
 
@@ -39,6 +40,12 @@ export default async function UserListPage({ params }: { params: Promise<{ userI
     <>
       <Nav user={currentUser} />
       <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-8">
+        <Link href="/lists" className="inline-flex items-center gap-1 text-sm text-muted hover:text-foreground transition-colors mb-4">
+          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+          </svg>
+          All Lists
+        </Link>
         <h1 className="text-2xl font-bold">{listOwner.firstName}&apos;s List</h1>
         <p className="mt-1 text-sm text-muted">{safeItems.length} items</p>
 
