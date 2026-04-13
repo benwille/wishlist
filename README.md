@@ -12,6 +12,8 @@ A family wishlist app where members can add items they want, browse each other's
 - **Drizzle ORM** for queries and migrations
 - **Tailwind CSS 4** for styling
 - **Separate email Worker** using Gmail SMTP via nodemailer (service binding, not HTTP)
+- **Separate push Worker** using web-push for Web Push notifications (service binding, not HTTP)
+- **Google Analytics 4** for minimal event tracking (notification clicks and variants)
 
 ## Features
 
@@ -22,8 +24,12 @@ A family wishlist app where members can add items they want, browse each other's
 - Gift exchange with random assignments and exclusion rules
 - Public share links (read-only, no auth required)
 - PWA with offline fallback and install prompts
+- **Web Push notifications** with per-device subscriptions, in-app opt-in toggle, and admin broadcast tool
+- Automatic notifications for: item claimed (7 randomly-selected playful variants), exchange assignments (giver + receiver), new group member
 - Admin panel for user and group management
-- Invite system with tokenized links
+- **Admin user management** — invite new users, resend pending invites, deactivate, or delete (with safety checks that block delete when the user has exchange history or claimed items)
+- Invite system with tokenized links (7-day expiry, resendable)
+- Back navigation on list and exchange pages
 - Auto-formatted price display (prepends $, rounds to nearest dollar)
 
 ## Development
@@ -44,22 +50,40 @@ npm run db:migrate:remote  # apply migrations to production D1
 
 ### Deploy
 
-Pushes to `main` trigger GitHub Actions CI/CD, which builds and deploys both the main app and the email worker. Manual deploy:
+Pushes to `main` trigger GitHub Actions CI/CD, which builds and deploys the main app, the email worker, and the push worker. Manual deploy:
 
 ```bash
-npm run deploy   # builds Next.js + deploys to Cloudflare Workers
+npm run deploy                              # main app
+cd email-worker && npx wrangler deploy      # email worker
+cd push-worker && npx wrangler deploy       # push worker
 ```
 
 Secrets needed in GitHub Actions: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`
 
-Worker secrets (set via `wrangler secret put`): `GMAIL_USER`, `GMAIL_APP_PASSWORD`
+Worker secrets (set via `wrangler secret put`):
+- Email worker: `GMAIL_USER`, `GMAIL_APP_PASSWORD`
+- Push worker: `VAPID_PRIVATE_KEY` (public key is a plain var in `push-worker/wrangler.toml`)
+
+### Push Notifications
+
+- VAPID keys identify the app to browser push services. Generated once via `npx web-push generate-vapid-keys`.
+- `push_subscriptions` table stores per-user, per-device subscriptions. One user can have many (phone + laptop).
+- Notification URLs are tagged with `?n_type=...&n_variant=...` params so click events can be attributed in GA4. `NotificationClickTracker` strips the params after firing the event.
+- Copy lives in `src/lib/push/copy.ts` — that file is the single source of truth for all notification text. Variant slugs (`admirer`, `scheming`, etc.) are reported in GA4.
+- The service worker uses `postMessage` to tell the running app to navigate via Next.js router — `client.navigate()` is unreliable on backgrounded PWAs.
+
+### Analytics
+
+Minimal GA4 setup (measurement ID `G-W2PJW4MVEX`). Currently tracked:
+- `notification_clicked` — when a push is opened. Params: `type`, `variant`.
+
+Future: page views, auth events, list/claim/exchange actions.
 
 ## Future Ideas
 
-- **Weekly link checker** — Cron Trigger on a Cloudflare Worker that HEAD-requests all item links, flags 404s/5xx, and notifies the item owner
-- **Push notifications** (Web Push API) — notify users when:
-  - Someone claims or purchases an item on their list
-  - They receive a gift exchange invite
-  - A link on their list is broken
-- **Admin delete user** — needs cascade deletes for sessions/magic_links (FK constraint issue)
+- **Push Phase 2b (cron-based triggers)** — exchange reminders (1-week and 2-day nudges), low-list alerts ("only 2 unclaimed items left"), weekly link checker
+- **Deep linking + auto-edit** — notification URLs that open a specific item in edit mode (needed by the link checker flow). Currently edit is client-side state with no URL, so we'd add `?highlight=123` support on My List.
+- **Full GA4 coverage** — page views, auth events (login, invite accepted), list actions (add/edit/delete), claim/purchase actions, exchange run
 - **Expiring share tokens** — e.g. 7-day TTL, regenerate each time, to limit exposure
+- **Price checker** — flag items missing a price (deferred; scraping is unreliable)
+- **View tracking on share links** — deferred as potentially surveillance-y in a family gift context
