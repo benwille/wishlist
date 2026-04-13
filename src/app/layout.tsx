@@ -1,9 +1,13 @@
 import type { Metadata } from "next";
+import Script from "next/script";
+import { Suspense } from "react";
 import { Geist } from "next/font/google";
 import "./globals.css";
 import Footer from "@/components/layout/Footer";
 import RegisterSW from "@/components/RegisterSW";
 import InstallBanner from "@/components/InstallBanner";
+import NotificationClickTracker from "@/components/NotificationClickTracker";
+import { GA_MEASUREMENT_ID } from "@/lib/analytics/track";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -47,6 +51,22 @@ export default function RootLayout({
         <Footer />
         <RegisterSW />
         <InstallBanner />
+        <Suspense fallback={null}>
+          <NotificationClickTracker />
+        </Suspense>
+        <Script
+          src={`https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`}
+          strategy="afterInteractive"
+        />
+        <Script id="ga4-init" strategy="afterInteractive">
+          {`
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            window.gtag = gtag;
+            gtag('js', new Date());
+            gtag('config', '${GA_MEASUREMENT_ID}');
+          `}
+        </Script>
       </body>
     </html>
   );

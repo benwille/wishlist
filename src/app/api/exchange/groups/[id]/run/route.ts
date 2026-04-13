@@ -5,6 +5,8 @@ import { getDb } from "@/lib/db";
 import { exchangeGroupMembers, exchangeExclusions, exchangeAssignments, users } from "@/lib/db/schema";
 import { validateSession, getSessionCookieName } from "@/lib/auth/session";
 import { generateAssignments } from "@/lib/exchange/algorithm";
+import { sendPushToUsers } from "@/lib/push/send";
+import { giverAssignmentCopy, receiverAssignmentCopy } from "@/lib/push/copy";
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: groupIdStr } = await params;
@@ -90,6 +92,24 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         year,
       }))
     );
+
+    // Fire a push to each giver (#2) and each receiver (#3)
+    for (const a of namedAssignments) {
+      await sendPushToUsers(
+        db,
+        env.PUSH_WORKER,
+        [a.giverId],
+        giverAssignmentCopy(a.receiverName, a.receiverId),
+        { type: "assignment_giver" },
+      );
+      await sendPushToUsers(
+        db,
+        env.PUSH_WORKER,
+        [a.receiverId],
+        receiverAssignmentCopy(a.giverName),
+        { type: "assignment_receiver" },
+      );
+    }
 
     return NextResponse.json({ ok: true, assignments: namedAssignments });
   } catch (err) {
