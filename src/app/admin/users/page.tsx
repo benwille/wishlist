@@ -26,7 +26,7 @@ export default async function AdminUsersPage() {
   return (
     <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-8">
       <h1 className="text-2xl font-bold">Users</h1>
-      <p className="mt-1 text-sm text-muted">Create, edit, and deactivate user accounts.</p>
+      <p className="mt-1 text-sm text-muted">Create, edit, deactivate, and delete user accounts.</p>
 
       <div className="mt-6 rounded-xl border border-border bg-surface p-6 shadow-sm">
         <h2 className="text-lg font-semibold mb-4">Add a user</h2>
@@ -34,7 +34,7 @@ export default async function AdminUsersPage() {
       </div>
 
       <div className="mt-8">
-        <h2 className="text-lg font-semibold mb-4">All users ({allUsers.length})</h2>
+        <h2 className="text-lg font-semibold mb-4">Active users ({allUsers.filter((u) => u.active).length})</h2>
         <UserList users={allUsers} />
       </div>
     </main>
