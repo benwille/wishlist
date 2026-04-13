@@ -75,6 +75,18 @@ export const magicLinks = sqliteTable("magic_links", {
   index("idx_magic_links_token").on(table.token),
 ]);
 
+export const pushSubscriptions = sqliteTable("push_subscriptions", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  userId: integer("user_id").notNull().references(() => users.id),
+  endpoint: text("endpoint").notNull(),
+  p256dh: text("p256dh").notNull(),
+  auth: text("auth").notNull(),
+  createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => [
+  index("idx_push_subs_user_id").on(table.userId),
+  uniqueIndex("idx_push_subs_endpoint").on(table.endpoint),
+]);
+
 export const sessions = sqliteTable("sessions", {
   id: text("id").primaryKey(),
   userId: integer("user_id").notNull().references(() => users.id),

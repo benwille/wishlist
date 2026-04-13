@@ -18,6 +18,10 @@ migrations_dir = "drizzle/migrations"
 binding = "EMAIL_WORKER"
 service = "wishlist-email"
 
+[[services]]
+binding = "PUSH_WORKER"
+service = "wishlist-push"
+
 [[routes]]
 pattern = "theholidaywishlist.com/*"
 zone_name = "theholidaywishlist.com"

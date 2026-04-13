@@ -10,6 +10,7 @@ import {
   exchangeGroupMembers,
   exchangeExclusions,
   exchangeAssignments,
+  pushSubscriptions,
 } from "@/lib/db/schema";
 import { validateSession, getSessionCookieName } from "@/lib/auth/session";
 
@@ -101,6 +102,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
   await db.delete(sessions).where(eq(sessions.userId, userId));
   await db.delete(magicLinks).where(eq(magicLinks.userId, userId));
+  await db.delete(pushSubscriptions).where(eq(pushSubscriptions.userId, userId));
   await db.delete(items).where(eq(items.userId, userId));
   await db.delete(exchangeGroupMembers).where(eq(exchangeGroupMembers.userId, userId));
   await db.delete(exchangeExclusions).where(or(eq(exchangeExclusions.userId1, userId), eq(exchangeExclusions.userId2, userId)));

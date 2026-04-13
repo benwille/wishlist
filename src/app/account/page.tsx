@@ -3,6 +3,7 @@ import { getUser } from "@/lib/auth/getUser";
 import Nav from "@/components/layout/Nav";
 import PasswordForm from "./PasswordForm";
 import ShareLinkSection from "./ShareLinkSection";
+import PushNotificationToggle from "./PushNotificationToggle";
 
 export const metadata = { title: "Account" };
 
@@ -27,6 +28,11 @@ export default async function AccountPage() {
         <div className="mt-6 rounded-xl border border-border bg-surface p-6 shadow-sm">
           <h2 className="text-lg font-semibold mb-4">Change Password</h2>
           <PasswordForm />
+        </div>
+
+        <div className="mt-6 rounded-xl border border-border bg-surface p-6 shadow-sm">
+          <h2 className="text-lg font-semibold mb-4">Notifications</h2>
+          <PushNotificationToggle />
         </div>
 
         <div className="mt-6 rounded-xl border border-border bg-surface p-6 shadow-sm">
