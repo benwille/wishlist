@@ -43,16 +43,19 @@ self.addEventListener("push", (event) => {
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
 
-  const url = event.notification.data?.url || "/";
+  const path = event.notification.data?.url || "/";
+  const fullUrl = new URL(path, self.location.origin).href;
+
   event.waitUntil(
     clients.matchAll({ type: "window", includeUncontrolled: true }).then((windowClients) => {
       for (const client of windowClients) {
-        if (client.url.includes(self.location.origin) && "focus" in client) {
-          client.navigate(url);
+        if (client.url.startsWith(self.location.origin)) {
+          // Post a message so the app can navigate via Next.js router
+          client.postMessage({ type: "NOTIFICATION_CLICK", url: path });
           return client.focus();
         }
       }
-      return clients.openWindow(url);
+      return clients.openWindow(fullUrl);
     })
   );
 });
