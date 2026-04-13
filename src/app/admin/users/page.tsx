@@ -19,6 +19,7 @@ export default async function AdminUsersPage() {
       email: users.email,
       isAdmin: users.isAdmin,
       active: users.active,
+      inviteToken: users.inviteToken,
     })
     .from(users)
     .orderBy(asc(users.firstName));
@@ -34,7 +35,7 @@ export default async function AdminUsersPage() {
       </div>
 
       <div className="mt-8">
-        <h2 className="text-lg font-semibold mb-4">Active users ({allUsers.filter((u) => u.active).length})</h2>
+        <h2 className="text-lg font-semibold mb-4">Active users ({allUsers.filter((u) => u.active || u.inviteToken).length})</h2>
         <UserList users={allUsers} />
       </div>
     </main>

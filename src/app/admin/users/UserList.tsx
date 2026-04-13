@@ -10,6 +10,7 @@ type User = {
   email: string | null;
   isAdmin: number;
   active: number;
+  inviteToken: string | null;
 };
 
 export default function UserList({ users }: { users: User[] }) {
@@ -21,8 +22,8 @@ export default function UserList({ users }: { users: User[] }) {
   const [blockReason, setBlockReason] = useState("");
   const [showInactive, setShowInactive] = useState(false);
 
-  const activeUsers = users.filter((u) => u.active);
-  const inactiveUsers = users.filter((u) => !u.active);
+  const activeUsers = users.filter((u) => u.active || u.inviteToken);
+  const inactiveUsers = users.filter((u) => !u.active && !u.inviteToken);
 
   async function toggleActive(userId: number, currentlyActive: number) {
     setActing(userId);
@@ -106,6 +107,13 @@ export default function UserList({ users }: { users: User[] }) {
     router.refresh();
   }
 
+  async function resendInvite(userId: number) {
+    setActing(userId);
+    await fetch(`/api/users/${userId}/resend-invite`, { method: "POST" });
+    router.refresh();
+    setActing(null);
+  }
+
   function closeModal() {
     setDeleteTarget(null);
     setDeleteState(null);
@@ -178,7 +186,12 @@ export default function UserList({ users }: { users: User[] }) {
                     Admin
                   </span>
                 )}
-                {!u.active && (
+                {u.inviteToken && (
+                  <span className="ml-2 rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-700">
+                    Invite Pending
+                  </span>
+                )}
+                {!u.active && !u.inviteToken && (
                   <span className="ml-2 rounded-full bg-accent-light px-2 py-0.5 text-xs font-medium text-accent">
                     Inactive
                   </span>
@@ -193,13 +206,23 @@ export default function UserList({ users }: { users: User[] }) {
               >
                 Edit
               </button>
-              <button
-                onClick={() => toggleActive(u.id, u.active)}
-                disabled={acting === u.id}
-                className="rounded-lg px-3 py-1.5 text-xs font-medium text-muted hover:bg-accent-light hover:text-accent transition-colors"
-              >
-                {u.active ? "Deactivate" : "Reactivate"}
-              </button>
+              {u.inviteToken ? (
+                <button
+                  onClick={() => resendInvite(u.id)}
+                  disabled={acting === u.id}
+                  className="rounded-lg px-3 py-1.5 text-xs font-medium text-yellow-700 hover:bg-yellow-50 transition-colors"
+                >
+                  Resend Invite
+                </button>
+              ) : (
+                <button
+                  onClick={() => toggleActive(u.id, u.active)}
+                  disabled={acting === u.id}
+                  className="rounded-lg px-3 py-1.5 text-xs font-medium text-muted hover:bg-accent-light hover:text-accent transition-colors"
+                >
+                  {u.active ? "Deactivate" : "Reactivate"}
+                </button>
+              )}
               <button
                 onClick={() => handleDeleteClick(u)}
                 disabled={acting === u.id}
