@@ -108,21 +108,19 @@ export default function PushNotificationToggle() {
   }
 
   return (
-    <div className="flex items-center justify-between">
-      <div>
-        <p className="text-sm font-medium">
-          {state === "subscribed" ? "Notifications are on" : "Notifications are off"}
-        </p>
-        <p className="text-xs text-muted">
-          {state === "subscribed"
-            ? "You\u2019ll get notified about activity on your lists."
-            : "Enable to get notified when someone interacts with your list."}
-        </p>
-      </div>
+    <div>
+      <p className="text-sm font-medium">
+        {state === "subscribed" ? "Notifications are on" : "Notifications are off"}
+      </p>
+      <p className="mt-1 text-xs text-muted">
+        {state === "subscribed"
+          ? "You\u2019ll get notified about activity on your lists."
+          : "Enable to get notified when someone interacts with your list."}
+      </p>
       <button
         onClick={state === "subscribed" ? unsubscribe : subscribe}
         disabled={acting}
-        className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors disabled:opacity-60 ${
+        className={`mt-3 rounded-lg px-4 py-2 text-sm font-medium transition-colors disabled:opacity-60 ${
           state === "subscribed"
             ? "text-muted hover:bg-accent-light hover:text-accent"
             : "bg-primary text-white hover:bg-primary-dark"
