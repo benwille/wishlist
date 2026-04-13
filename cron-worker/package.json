@@ -1,0 +1,5 @@
+{
+  "name": "wishlist-cron-worker",
+  "private": true,
+  "type": "module"
+}

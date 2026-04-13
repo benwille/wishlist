@@ -1,7 +1,7 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import ItemForm from "./ItemForm";
 import { formatPrice } from "@/lib/formatPrice";
 
@@ -17,8 +17,37 @@ type Item = {
 
 export default function MyItemList({ items }: { items: Item[] }) {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [deleting, setDeleting] = useState<number | null>(null);
   const [editing, setEditing] = useState<number | null>(null);
+  const [highlighted, setHighlighted] = useState<number | null>(null);
+
+  useEffect(() => {
+    const highlight = searchParams.get("highlight");
+    if (!highlight) return;
+
+    const id = Number(highlight);
+    if (!items.some((i) => i.id === id)) return;
+
+    setEditing(id);
+    setHighlighted(id);
+
+    // Scroll after render
+    requestAnimationFrame(() => {
+      document.getElementById(`item-${id}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+
+    // Strip highlight param — keep other params (like n_type) for the click tracker
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("highlight");
+    const qs = params.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+
+    // Fade the highlight ring after a few seconds
+    const t = setTimeout(() => setHighlighted(null), 3000);
+    return () => clearTimeout(t);
+  }, [searchParams, pathname, router, items]);
 
   async function handleDelete(id: number) {
     if (!confirm("Remove this item?")) return;
@@ -35,7 +64,13 @@ export default function MyItemList({ items }: { items: Item[] }) {
   return (
     <div className="space-y-3">
       {items.map((item) => (
-        <div key={item.id} className="rounded-xl border border-border bg-surface p-4 shadow-sm">
+        <div
+          key={item.id}
+          id={`item-${item.id}`}
+          className={`rounded-xl border bg-surface p-4 shadow-sm transition-all ${
+            highlighted === item.id ? "border-primary ring-2 ring-primary-light" : "border-border"
+          }`}
+        >
           {editing === item.id ? (
             <div>
               <div className="flex items-center justify-between mb-3">

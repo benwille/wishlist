@@ -57,3 +57,23 @@ export function newMemberCopy(memberName: string, groupName: string, groupId: nu
     url: `/exchange/${groupId}`,
   };
 }
+
+// #4 — List getting low (count of unclaimed items)
+export function lowListCopy(unclaimedCount: number): PushCopy {
+  return {
+    title: "Your list is getting thin",
+    body: unclaimedCount === 0
+      ? "You have no unclaimed items. Add some ideas so people know what to get you!"
+      : `Only ${unclaimedCount} unclaimed item${unclaimedCount === 1 ? "" : "s"} left. Add a few more ideas.`,
+    url: "/my-list",
+  };
+}
+
+// #5 — Broken link on an item
+export function brokenLinkCopy(itemName: string, itemId: number): PushCopy {
+  return {
+    title: "A link on your list is broken",
+    body: `The link for "${itemName}" isn't working. Tap to fix it.`,
+    url: `/my-list?highlight=${itemId}`,
+  };
+}

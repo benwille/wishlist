@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { eq, desc } from "drizzle-orm";
 import { getUser } from "@/lib/auth/getUser";
@@ -40,7 +41,9 @@ export default async function MyListPage() {
 
         <div className="mt-8">
           <h2 className="text-lg font-semibold mb-4">Your items ({myItems.length})</h2>
-          <MyItemList items={myItems} />
+          <Suspense fallback={null}>
+            <MyItemList items={myItems} />
+          </Suspense>
         </div>
       </main>
     </>
