@@ -124,7 +124,7 @@ export default function UserList({ users }: { users: User[] }) {
     return (
       <div
         key={u.id}
-        className={`rounded-xl border bg-surface p-4 shadow-sm ${u.active ? "border-border" : "border-border opacity-50"}`}
+        className={`rounded-xl border bg-surface p-4 shadow-sm ${u.active || u.inviteToken ? "border-border" : "border-border opacity-50"}`}
       >
         {editingId === u.id ? (
           <form
