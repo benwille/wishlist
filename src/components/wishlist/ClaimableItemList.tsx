@@ -3,6 +3,13 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { formatPrice } from "@/lib/formatPrice";
+import { trackEvent } from "@/lib/analytics/track";
+
+const CLAIM_EVENTS = {
+  claim: "item_claimed",
+  unclaim: "item_unclaimed",
+  purchase: "item_purchased",
+} as const;
 
 type Item = {
   id: number;
@@ -29,11 +36,12 @@ export default function ClaimableItemList({
 
   async function handleClaim(itemId: number, action: "claim" | "unclaim" | "purchase") {
     setActing(itemId);
-    await fetch(`/api/items/${itemId}/claim`, {
+    const res = await fetch(`/api/items/${itemId}/claim`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action }),
     });
+    if (res.ok) trackEvent(CLAIM_EVENTS[action]);
     router.refresh();
     setActing(null);
   }

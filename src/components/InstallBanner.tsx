@@ -18,27 +18,37 @@ export default function InstallBanner() {
     // Already installed as standalone
     if (window.matchMedia("(display-mode: standalone)").matches) return;
 
-    // Check if already dismissed this session
-    if (sessionStorage.getItem("pwa-dismissed")) return;
-
     const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
     const isAndroid = /Android/i.test(navigator.userAgent);
 
-    if (isIOS) {
-      setMode("ios");
-      return;
+    function showIfAllowed() {
+      if (sessionStorage.getItem("pwa-dismissed")) return;
+      if (isIOS) {
+        setDismissed(false);
+        setMode("ios");
+      }
     }
 
-    if (!isAndroid) return;
+    showIfAllowed();
+
+    // Other parts of the app (e.g. the notifications toggle) can ask the
+    // banner to re-show after clearing the dismissal flag
+    window.addEventListener("pwa-install-prompt", showIfAllowed);
 
     function handlePrompt(e: Event) {
       e.preventDefault();
       setDeferredPrompt(e as BeforeInstallPromptEvent);
-      setMode("android");
+      if (!sessionStorage.getItem("pwa-dismissed")) {
+        setDismissed(false);
+        setMode("android");
+      }
     }
 
-    window.addEventListener("beforeinstallprompt", handlePrompt);
-    return () => window.removeEventListener("beforeinstallprompt", handlePrompt);
+    if (isAndroid) window.addEventListener("beforeinstallprompt", handlePrompt);
+    return () => {
+      window.removeEventListener("pwa-install-prompt", showIfAllowed);
+      if (isAndroid) window.removeEventListener("beforeinstallprompt", handlePrompt);
+    };
   }, []);
 
   function dismiss() {

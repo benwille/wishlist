@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { trackEvent } from "@/lib/analytics/track";
 
 export default function ItemForm({ userId, item, onSaved }: {
   userId: number;
@@ -36,6 +37,10 @@ export default function ItemForm({ userId, item, onSaved }: {
     });
 
     if (res.ok) {
+      trackEvent(isEdit ? "item_edited" : "item_added", {
+        has_link: !!data.link,
+        has_price: !!data.priceRange,
+      });
       if (!isEdit) (e.target as HTMLFormElement).reset();
       router.refresh();
       onSaved?.();

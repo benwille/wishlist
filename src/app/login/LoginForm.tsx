@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { trackEvent } from "@/lib/analytics/track";
 
 export default function LoginForm({ redirectTo }: { redirectTo?: string }) {
   const [mode, setMode] = useState<"password" | "magic">("password");
@@ -22,6 +23,7 @@ export default function LoginForm({ redirectTo }: { redirectTo?: string }) {
     });
 
     if (res.ok) {
+      trackEvent("login", { method: "password" });
       window.location.href = redirectTo || "/";
     } else {
       window.location.href = `/login?error=invalid${redirectTo ? `&redirect=${encodeURIComponent(redirectTo)}` : ""}`;
@@ -44,6 +46,7 @@ export default function LoginForm({ redirectTo }: { redirectTo?: string }) {
       }),
     });
 
+    trackEvent("magic_link_requested");
     setMagicSent(true);
     setLoading(false);
   }

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
+import { trackEvent } from "@/lib/analytics/track";
 
 type NavUser = {
   id: number;
@@ -54,7 +55,12 @@ export default function Nav({ user }: { user: NavUser }) {
                 {link.label}
               </Link>
             ))}
-            <form action="/api/auth/logout" method="POST" className="ml-2">
+            <form
+              action="/api/auth/logout"
+              method="POST"
+              className="ml-2"
+              onSubmit={() => trackEvent("logout")}
+            >
               <button
                 type="submit"
                 className="rounded-lg px-3 py-2 text-sm font-medium hover:bg-white/10"
@@ -95,7 +101,11 @@ export default function Nav({ user }: { user: NavUser }) {
                 {link.label}
               </Link>
             ))}
-            <form action="/api/auth/logout" method="POST">
+            <form
+              action="/api/auth/logout"
+              method="POST"
+              onSubmit={() => trackEvent("logout")}
+            >
               <button
                 type="submit"
                 className="w-full text-left rounded-lg px-3 py-2 text-sm font-medium hover:bg-white/10"

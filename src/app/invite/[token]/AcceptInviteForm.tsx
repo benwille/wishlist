@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { trackEvent } from "@/lib/analytics/track";
 
 export default function AcceptInviteForm({
   token,
@@ -41,6 +42,7 @@ export default function AcceptInviteForm({
     });
 
     if (res.ok) {
+      trackEvent("invite_accepted");
       window.location.href = "/";
     } else {
       const data = (await res.json()) as { error?: string };

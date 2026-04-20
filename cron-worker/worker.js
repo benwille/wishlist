@@ -1,6 +1,8 @@
 const INTERNAL_SECRET = "wishlist-push-internal-2026";
 const LOW_LIST_THRESHOLD = 3;
 const LINK_CHECK_TIMEOUT_MS = 10_000;
+const LINK_CHECK_UA =
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
 
 export default {
   async scheduled(event, env, ctx) {
@@ -59,8 +61,8 @@ async function runLinkCheck(env) {
 
   for (const item of items) {
     checked++;
-    const ok = await checkLink(item.link);
-    if (ok) continue;
+    const status = await checkLink(item.link);
+    if (status !== "broken") continue;
 
     broken++;
 
@@ -80,22 +82,31 @@ async function runLinkCheck(env) {
   return { task: "link_check", checked, broken, notified };
 }
 
+// Returns "ok" | "broken" | "unknown". Only "broken" triggers a notification —
+// anything ambiguous (bot walls, rate limits, timeouts) is "unknown" so we
+// don't spam owners about perfectly good links.
 async function checkLink(url) {
-  if (!/^https?:\/\//.test(url)) return false;
+  if (!/^https?:\/\//.test(url)) return "broken";
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), LINK_CHECK_TIMEOUT_MS);
+  const headers = {
+    "User-Agent": LINK_CHECK_UA,
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+  };
 
   try {
-    let res = await fetch(url, { method: "HEAD", signal: controller.signal, redirect: "follow" });
-    // Some sites don't allow HEAD — retry with GET
-    if (res.status === 405 || res.status === 403) {
-      res = await fetch(url, { method: "GET", signal: controller.signal, redirect: "follow" });
+    let res = await fetch(url, { method: "HEAD", headers, signal: controller.signal, redirect: "follow" });
+    // Many sites reject HEAD — retry ambiguous responses with GET before deciding
+    if (res.status === 405 || res.status === 403 || res.status === 429 || res.status >= 500) {
+      res = await fetch(url, { method: "GET", headers, signal: controller.signal, redirect: "follow" });
     }
-    return res.status >= 200 && res.status < 400;
+    if (res.status === 404 || res.status === 410) return "broken";
+    if (res.status >= 200 && res.status < 400) return "ok";
+    return "unknown";
   } catch {
-    // Network error / timeout — treat as broken to be safe
-    return false;
+    return "unknown";
   } finally {
     clearTimeout(timer);
   }

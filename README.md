@@ -75,15 +75,22 @@ Worker secrets (set via `wrangler secret put`):
 ### Analytics
 
 Minimal GA4 setup (measurement ID `G-W2PJW4MVEX`). Currently tracked:
-- `notification_clicked` — when a push is opened. Params: `type`, `variant`.
+- `notification_clicked` — push opened. Params: `type`, `variant`.
+- `login` — successful password login. Params: `method` (`password`).
+- `magic_link_requested` — user submitted the email-me-a-link form.
+- `invite_accepted` — new user set a password and landed in the app.
+- `logout` — user clicked Log out (fires on form submit).
+- `item_added` / `item_edited` — list CRUD. Params: `has_link`, `has_price`.
+- `item_deleted` — item removed from a list.
+- `item_claimed` / `item_unclaimed` / `item_purchased` — claim state changes.
 
-Future: page views, auth events, list/claim/exchange actions.
+Future: page views, exchange run, magic-link login completion (needs server-side tracking).
 
 ## Future Ideas
 
 - **Push Phase 2b (cron-based triggers)** — exchange reminders (1-week and 2-day nudges), low-list alerts ("only 2 unclaimed items left"), weekly link checker
 - **Deep linking + auto-edit** — notification URLs that open a specific item in edit mode (needed by the link checker flow). Currently edit is client-side state with no URL, so we'd add `?highlight=123` support on My List.
-- **Full GA4 coverage** — page views, auth events (login, invite accepted), list actions (add/edit/delete), claim/purchase actions, exchange run
+- **GA4 — remaining coverage** — page views, exchange_run, and magic-link login completion (server-side)
 - **Expiring share tokens** — e.g. 7-day TTL, regenerate each time, to limit exposure
 - **Price checker** — flag items missing a price (deferred; scraping is unreliable)
 - **View tracking on share links** — deferred as potentially surveillance-y in a family gift context

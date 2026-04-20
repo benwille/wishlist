@@ -4,6 +4,7 @@ import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import ItemForm from "./ItemForm";
 import { formatPrice } from "@/lib/formatPrice";
+import { trackEvent } from "@/lib/analytics/track";
 
 type Item = {
   id: number;
@@ -52,7 +53,8 @@ export default function MyItemList({ items }: { items: Item[] }) {
   async function handleDelete(id: number) {
     if (!confirm("Remove this item?")) return;
     setDeleting(id);
-    await fetch(`/api/items/${id}`, { method: "DELETE" });
+    const res = await fetch(`/api/items/${id}`, { method: "DELETE" });
+    if (res.ok) trackEvent("item_deleted");
     router.refresh();
     setDeleting(null);
   }

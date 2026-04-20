@@ -13,13 +13,33 @@ function urlBase64ToUint8Array(base64String: string) {
   return output;
 }
 
-type PushState = "loading" | "unsupported" | "denied" | "subscribed" | "unsubscribed";
+type PushState =
+  | "loading"
+  | "unsupported"
+  | "install-ios"
+  | "denied"
+  | "subscribed"
+  | "unsubscribed";
 
 export default function PushNotificationToggle() {
   const [state, setState] = useState<PushState>("loading");
   const [acting, setActing] = useState(false);
 
   useEffect(() => {
+    const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+    const isStandalone =
+      window.matchMedia("(display-mode: standalone)").matches ||
+      // iOS-specific non-standard property
+      (navigator as Navigator & { standalone?: boolean }).standalone === true;
+
+    // iOS Safari outside a home-screen PWA can't receive push — prompt install
+    if (isIOS && !isStandalone) {
+      sessionStorage.removeItem("pwa-dismissed");
+      window.dispatchEvent(new Event("pwa-install-prompt"));
+      setState("install-ios");
+      return;
+    }
+
     if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
       setState("unsupported");
       return;
@@ -95,8 +115,20 @@ export default function PushNotificationToggle() {
     return <p className="text-sm text-muted">Checking notification support...</p>;
   }
 
+  if (state === "install-ios") {
+    return (
+      <div className="rounded-lg border border-border bg-accent-light/40 p-3">
+        <p className="text-sm font-medium">Add Wishlist to your home screen</p>
+        <p className="mt-1 text-xs text-muted">
+          To get notifications on iPhone or iPad, install the app first: tap the Share button in Safari,
+          then &ldquo;Add to Home Screen.&rdquo; Open the installed app and come back here to turn notifications on.
+        </p>
+      </div>
+    );
+  }
+
   if (state === "unsupported") {
-    return <p className="text-sm text-muted">Push notifications aren&apos;t supported on this device.</p>;
+    return <p className="text-sm text-muted">Push notifications aren&apos;t supported on this browser.</p>;
   }
 
   if (state === "denied") {
