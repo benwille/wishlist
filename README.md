@@ -19,6 +19,7 @@ A family wishlist app where members can add items they want, browse each other's
 
 - Magic link authentication (passwordless email login)
 - Add, edit, and remove wishlist items with name, description, link, and price
+- Mark items as received once a gift is in hand — kept as history in a collapsed section on My List, hidden from other users' views of your list
 - Browse other users' lists and claim/mark items as purchased
 - Group-based visibility — users only see members of shared exchange groups
 - Gift exchange with random assignments and exclusion rules
@@ -83,6 +84,7 @@ Minimal GA4 setup (measurement ID `G-W2PJW4MVEX`). Currently tracked:
 - `item_added` / `item_edited` — list CRUD. Params: `has_link`, `has_price`.
 - `item_deleted` — item removed from a list.
 - `item_claimed` / `item_unclaimed` / `item_purchased` — claim state changes.
+- `item_received` / `item_unreceived` — owner marked a gift as received (or undid it). Received items are stamped with `received_at` and hidden from other users' views.
 
 Future: page views, exchange run, magic-link login completion (needs server-side tracking).
 

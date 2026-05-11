@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and, isNull } from "drizzle-orm";
 import { getUser } from "@/lib/auth/getUser";
 import { getDb } from "@/lib/db";
 import { users, items } from "@/lib/db/schema";
@@ -25,7 +25,7 @@ export default async function UserListPage({ params }: { params: Promise<{ userI
   const userItems = await db
     .select()
     .from(items)
-    .where(eq(items.userId, listOwner.id))
+    .where(and(eq(items.userId, listOwner.id), isNull(items.receivedAt)))
     .orderBy(desc(items.createdAt));
 
   // Strip claim info if viewing own list

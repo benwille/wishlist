@@ -24,6 +24,7 @@ export const items = sqliteTable("items", {
   priceRange: text("price_range"),
   claimedBy: integer("claimed_by").references(() => users.id),
   purchased: integer("purchased").notNull().default(0),
+  receivedAt: text("received_at"),
   yearAdded: integer("year_added").notNull(),
   createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
 }, (table) => [

@@ -24,6 +24,9 @@ export default async function MyListPage() {
     .where(eq(items.userId, user.id))
     .orderBy(desc(items.createdAt));
 
+  const activeItems = myItems.filter((i) => !i.receivedAt);
+  const receivedItems = myItems.filter((i) => i.receivedAt);
+
   return (
     <>
       <Nav user={user} />
@@ -40,11 +43,22 @@ export default async function MyListPage() {
         </div>
 
         <div className="mt-8">
-          <h2 className="text-lg font-semibold mb-4">Your items ({myItems.length})</h2>
+          <h2 className="text-lg font-semibold mb-4">Your items ({activeItems.length})</h2>
           <Suspense fallback={null}>
-            <MyItemList items={myItems} />
+            <MyItemList items={activeItems} />
           </Suspense>
         </div>
+
+        {receivedItems.length > 0 && (
+          <details className="mt-8 rounded-xl border border-border bg-surface p-4 shadow-sm">
+            <summary className="cursor-pointer text-sm font-semibold text-muted hover:text-foreground">
+              Received ({receivedItems.length})
+            </summary>
+            <div className="mt-4">
+              <MyItemList items={receivedItems} />
+            </div>
+          </details>
+        )}
       </main>
     </>
   );

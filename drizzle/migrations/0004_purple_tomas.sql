@@ -1,0 +1,1 @@
+ALTER TABLE `items` ADD `received_at` text;
