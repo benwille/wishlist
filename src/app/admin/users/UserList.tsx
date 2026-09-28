@@ -177,9 +177,9 @@ export default function UserList({ users }: { users: User[] }) {
             </div>
           </form>
         ) : (
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="font-medium">
+          <div>
+            <div className="flex items-start justify-between gap-3">
+              <p className="min-w-0 font-medium">
                 {u.firstName} {u.lastName}
                 {u.isAdmin === 1 && (
                   <span className="ml-2 rounded-full bg-primary-light px-2 py-0.5 text-xs font-medium text-primary-dark">
@@ -197,40 +197,40 @@ export default function UserList({ users }: { users: User[] }) {
                   </span>
                 )}
               </p>
-              <p className="text-sm text-muted">{u.email || "No email"}</p>
-            </div>
-            <div className="flex gap-1">
-              <button
-                onClick={() => setEditingId(u.id)}
-                className="rounded-lg px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary-light transition-colors"
-              >
-                Edit
-              </button>
-              {u.inviteToken ? (
+              <div className="flex shrink-0 gap-1">
                 <button
-                  onClick={() => resendInvite(u.id)}
-                  disabled={acting === u.id}
-                  className="rounded-lg px-3 py-1.5 text-xs font-medium text-yellow-700 hover:bg-yellow-50 transition-colors"
+                  onClick={() => setEditingId(u.id)}
+                  className="rounded-lg px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary-light transition-colors"
                 >
-                  Resend Invite
+                  Edit
                 </button>
-              ) : (
+                {u.inviteToken ? (
+                  <button
+                    onClick={() => resendInvite(u.id)}
+                    disabled={acting === u.id}
+                    className="rounded-lg px-3 py-1.5 text-xs font-medium text-yellow-700 hover:bg-yellow-50 transition-colors"
+                  >
+                    Resend Invite
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => toggleActive(u.id, u.active)}
+                    disabled={acting === u.id}
+                    className="rounded-lg px-3 py-1.5 text-xs font-medium text-muted hover:bg-accent-light hover:text-accent transition-colors"
+                  >
+                    {u.active ? "Deactivate" : "Reactivate"}
+                  </button>
+                )}
                 <button
-                  onClick={() => toggleActive(u.id, u.active)}
+                  onClick={() => handleDeleteClick(u)}
                   disabled={acting === u.id}
-                  className="rounded-lg px-3 py-1.5 text-xs font-medium text-muted hover:bg-accent-light hover:text-accent transition-colors"
+                  className="rounded-lg px-3 py-1.5 text-xs font-medium text-red-500 hover:bg-red-50 transition-colors"
                 >
-                  {u.active ? "Deactivate" : "Reactivate"}
+                  Delete
                 </button>
-              )}
-              <button
-                onClick={() => handleDeleteClick(u)}
-                disabled={acting === u.id}
-                className="rounded-lg px-3 py-1.5 text-xs font-medium text-red-500 hover:bg-red-50 transition-colors"
-              >
-                Delete
-              </button>
+              </div>
             </div>
+            <p className="mt-1 break-words text-sm text-muted">{u.email || "No email"}</p>
           </div>
         )}
       </div>

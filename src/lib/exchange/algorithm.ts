@@ -1,6 +1,6 @@
 type ExclusionPair = { userId1: number; userId2: number };
 type HistoryEntry = { giverId: number; receiverId: number; year: number };
-type Assignment = { giverId: number; receiverId: number };
+export type Assignment = { giverId: number; receiverId: number };
 
 const MAX_ATTEMPTS = 1000;
 
@@ -63,6 +63,56 @@ export function generateAssignments(
     `Could not find valid assignments after ${MAX_ATTEMPTS} attempts. ` +
     "Check your exclusion rules — there may be too many constraints for the group size."
   );
+}
+
+export function validateAssignments(
+  assignments: Assignment[],
+  members: number[],
+  exclusions: ExclusionPair[],
+  history: HistoryEntry[],
+  currentYear: number
+) {
+  if (assignments.length !== members.length) {
+    throw new Error("Assignments must include every group member.");
+  }
+
+  const memberIds = new Set(members);
+  const givers = new Set<number>();
+  const receivers = new Set<number>();
+  const exclusionSet = new Set<string>();
+  const recentHistory = new Set<string>();
+
+  for (const { userId1, userId2 } of exclusions) {
+    exclusionSet.add(`${userId1}-${userId2}`);
+    exclusionSet.add(`${userId2}-${userId1}`);
+  }
+
+  for (const { giverId, receiverId, year } of history) {
+    if (year >= currentYear - 2) {
+      recentHistory.add(`${giverId}-${receiverId}`);
+    }
+  }
+
+  for (const { giverId, receiverId } of assignments) {
+    if (!memberIds.has(giverId) || !memberIds.has(receiverId)) {
+      throw new Error("Assignments can only include current group members.");
+    }
+    if (giverId === receiverId) {
+      throw new Error("A member cannot be assigned to themselves.");
+    }
+    if (givers.has(giverId) || receivers.has(receiverId)) {
+      throw new Error("Each member must give to and receive from exactly one person.");
+    }
+    if (exclusionSet.has(`${giverId}-${receiverId}`)) {
+      throw new Error("Assignments violate an exclusion rule.");
+    }
+    if (recentHistory.has(`${giverId}-${receiverId}`)) {
+      throw new Error("Assignments repeat a pairing from the last two years.");
+    }
+
+    givers.add(giverId);
+    receivers.add(receiverId);
+  }
 }
 
 function shuffle<T>(array: T[]): T[] {

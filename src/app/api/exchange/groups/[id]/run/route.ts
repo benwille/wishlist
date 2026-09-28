@@ -4,7 +4,7 @@ import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { getDb } from "@/lib/db";
 import { exchangeGroupMembers, exchangeExclusions, exchangeAssignments, users } from "@/lib/db/schema";
 import { validateSession, getSessionCookieName } from "@/lib/auth/session";
-import { generateAssignments } from "@/lib/exchange/algorithm";
+import { generateAssignments, validateAssignments, type Assignment } from "@/lib/exchange/algorithm";
 import { sendPushToUsers } from "@/lib/push/send";
 import { giverAssignmentCopy, receiverAssignmentCopy } from "@/lib/push/copy";
 
@@ -19,7 +19,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const user = await validateSession(db, sessionId);
   if (!user?.isAdmin) return NextResponse.json({ error: "Admin required" }, { status: 403 });
 
-  const body = (await request.json()) as { year: number; preview: boolean };
+  const body = (await request.json()) as { year: number; preview: boolean; assignments?: Assignment[] };
   const { year, preview } = body;
 
   if (!year) return NextResponse.json({ error: "Year required" }, { status: 400 });
@@ -47,12 +47,18 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     .where(eq(exchangeAssignments.groupId, groupId));
 
   try {
-    const assignments = generateAssignments(
-      members.map((m) => m.userId),
-      exclusions,
-      history,
-      year
-    );
+    const memberIds = members.map((m) => m.userId);
+    let assignments: Assignment[];
+
+    if (preview) {
+      assignments = generateAssignments(memberIds, exclusions, history, year);
+    } else {
+      if (!Array.isArray(body.assignments)) {
+        return NextResponse.json({ error: "Assignments required" }, { status: 400 });
+      }
+      validateAssignments(body.assignments, memberIds, exclusions, history, year);
+      assignments = body.assignments;
+    }
 
     // Get names for display
     const allUsers = await db.select({ id: users.id, firstName: users.firstName, lastName: users.lastName }).from(users);

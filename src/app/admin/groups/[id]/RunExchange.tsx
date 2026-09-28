@@ -3,7 +3,12 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-type Assignment = { giverName: string; receiverName: string };
+type Assignment = {
+  giverId: number;
+  receiverId: number;
+  giverName: string;
+  receiverName: string;
+};
 
 export default function RunExchange({ groupId, memberCount }: { groupId: number; memberCount: number }) {
   const router = useRouter();
@@ -36,13 +41,15 @@ export default function RunExchange({ groupId, memberCount }: { groupId: number;
   }
 
   async function confirmSave() {
+    if (!preview) return;
+
     setLoading(true);
     setError("");
 
     const res = await fetch(`/api/exchange/groups/${groupId}/run`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ year, preview: false }),
+      body: JSON.stringify({ year, preview: false, assignments: preview }),
     });
 
     if (res.ok) {
