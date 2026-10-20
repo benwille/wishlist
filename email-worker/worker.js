@@ -7,12 +7,13 @@ export default {
     }
 
     const authHeader = request.headers.get("X-Internal-Auth");
-    if (authHeader !== env.INTERNAL_SECRET) {
+    const familyBank = authHeader === env.FAMILY_BANK_SECRET;
+    if (authHeader !== env.INTERNAL_SECRET && !familyBank) {
       return new Response("Unauthorized", { status: 401 });
     }
 
     try {
-      const { to, subject, html } = await request.json();
+      const { to, subject, html, fromName } = await request.json();
 
       const transporter = nodemailer.createTransport({
         host: "smtp.gmail.com",
@@ -25,7 +26,7 @@ export default {
       });
 
       await transporter.sendMail({
-        from: `"Wishlist" <${env.GMAIL_USER}>`,
+        from: `"${familyBank && fromName === "Family Bank" ? "Family Bank" : "Wishlist"}" <${env.GMAIL_USER}>`,
         to,
         subject,
         html,
