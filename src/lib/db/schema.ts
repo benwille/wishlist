@@ -1,4 +1,5 @@
-import { sqliteTable, text, integer, uniqueIndex, index, primaryKey } from "drizzle-orm/sqlite-core";
+import { sql } from "drizzle-orm";
+import { sqliteTable, text, integer, uniqueIndex, index, primaryKey, check } from "drizzle-orm/sqlite-core";
 
 export const users = sqliteTable("users", {
   id: integer("id").primaryKey({ autoIncrement: true }),
@@ -139,3 +140,28 @@ export const sessions = sqliteTable("sessions", {
 }, (table) => [
   index("idx_sessions_user_id").on(table.userId),
 ]);
+
+// Children participate without receiving login accounts or wishlists.
+export const children = sqliteTable("children", {
+ id: integer("id").primaryKey({ autoIncrement: true }),
+ firstName: text("first_name").notNull(), lastName: text("last_name").notNull(),
+});
+export const childAdults = sqliteTable("child_adults", {
+ childId: integer("child_id").notNull().references(() => children.id, { onDelete: "cascade" }),
+ adultId: integer("adult_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+}, t => [primaryKey({ columns: [t.childId, t.adultId] }), index("idx_child_adults_adult").on(t.adultId)]);
+export const childGroupMembers = sqliteTable("child_group_members", {
+ groupId: integer("group_id").notNull().references(() => exchangeGroups.id, { onDelete: "cascade" }),
+ childId: integer("child_id").notNull().references(() => children.id),
+}, t => [primaryKey({ columns: [t.groupId, t.childId] })]);
+export const childExclusions = sqliteTable("child_exclusions", {
+ groupId: integer("group_id").notNull().references(() => exchangeGroups.id, { onDelete: "cascade" }),
+ childId1: integer("child_id_1").notNull().references(() => children.id),
+ childId2: integer("child_id_2").notNull().references(() => children.id),
+}, t => [primaryKey({ columns: [t.groupId, t.childId1, t.childId2] }), check("child_exclusion_order", sql`${t.childId1} < ${t.childId2}`)]);
+export const childAssignments = sqliteTable("child_assignments", {
+ groupId: integer("group_id").notNull().references(() => exchangeGroups.id),
+ giverId: integer("giver_id").notNull().references(() => children.id),
+ receiverId: integer("receiver_id").notNull().references(() => children.id),
+ year: integer("year").notNull(),
+}, t => [primaryKey({ columns: [t.groupId, t.year, t.giverId] }), uniqueIndex("idx_child_receiver_year").on(t.groupId, t.year, t.receiverId), check("child_no_self", sql`${t.giverId} <> ${t.receiverId}`)]);

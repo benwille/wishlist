@@ -112,3 +112,13 @@ Future: page views, exchange run, magic-link login completion (needs server-side
 - **Expiring share tokens** — e.g. 7-day TTL, regenerate each time, to limit exposure
 - **Price checker** — flag items missing a price (deferred; scraping is unreliable)
 - **View tracking on share links** — deferred as potentially surveillance-y in a family gift context
+
+### Kids exchange
+
+Each family exchange group has a separate kids roster and yearly draw. In **Admin → Exchange Groups → [family group] → Manage Kids Exchange**, create children, link any number of active adult accounts, add explicit sibling exclusions, then generate and save a preview. Existing children can join another group without duplicate profiles. Child names and adult links belong to the child profile and apply across groups.
+
+Children have no login or wishlist in this version. Linked adults see their children's current assignments on the homepage. Family group members and linked adults can see both adult and kids assignments on the family exchange page. Only administrators can edit children, adult links, participation, exclusions, or draws. Linking an adult grants family exchange visibility without entering that adult into either draw.
+
+The kids draw gives every participant exactly one recipient and one giver, excludes self/sibling pairs, and avoids only the immediately preceding year's recipient. It reports impossible constraints without saving an invalid draw. Saving revalidates the preview against the current roster and rules; replacing a year's assignments requires confirmation. Removing a child from a roster retains the child's profile, adult links, and saved history, but removes that group's explicit exclusions for the child. Re-add those exclusions if the child rejoins. Adult draw rules are unchanged. Kids assignments are viewed in the app; this version does not send assignment notifications.
+
+Migration `0006_kids_exchange.sql` adds only new child tables; normal tests apply every migration against a fresh SQLite fixture. `npm test` covers admin authorization, unlimited adult links, draw constraints, replacement safety, parent dashboard rendering, and group access. `tests/kids.browser.mjs` provides an optional mobile browser smoke test against a **fresh isolated local database** seeded with `tests/fixtures/kids-preview.sql`; it requires an existing Playwright Chromium runtime and accepts `PLAYWRIGHT_MODULE`, `CHROMIUM_PATH`, and `KIDS_PREVIEW_ORIGIN`. Do not seed production with these synthetic preview records.

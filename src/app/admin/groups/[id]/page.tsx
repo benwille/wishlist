@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { eq, desc } from "drizzle-orm";
@@ -58,7 +59,7 @@ export default async function GroupDetailPage({ params }: { params: Promise<{ id
 
   return (
     <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-8">
-      <RenameGroup groupId={group.id} currentName={group.name} />
+      <RenameGroup groupId={group.id} currentName={group.name} /><Link href={`/admin/groups/${group.id}/kids`} className="mt-4 inline-block rounded-lg border border-border px-4 py-2 font-medium text-primary">Manage Kids Exchange</Link>
       <p className="mt-1 text-sm text-muted">Manage members, exclusions, and run the exchange.</p>
 
       <div className="mt-6 rounded-xl border border-border bg-surface p-6 shadow-sm">

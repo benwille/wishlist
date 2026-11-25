@@ -4,6 +4,8 @@ import { eq, and } from "drizzle-orm";
 import { getUser } from "@/lib/auth/getUser";
 import { getDb } from "@/lib/db";
 import { exchangeAssignments, exchangeGroups, users } from "@/lib/db/schema";
+import { accessibleGroups, kidsAssignments, linkedKids } from "@/lib/exchange/kids";
+import KidsAssignments from "@/components/KidsAssignments";
 import Nav from "@/components/layout/Nav";
 
 export default async function DashboardPage() {
@@ -30,6 +32,9 @@ export default async function DashboardPage() {
       )
     );
 
+  const linked = await linkedKids(db,user.id);
+  const groups = await accessibleGroups(db,user.id,user.isAdmin);
+  const childDraws = (await kidsAssignments(db,groups.map(g=>g.id))).filter(a=>a.year===currentYear && linked.some(c=>c.id===a.giverId));
   return (
     <>
       <Nav user={user} />
@@ -89,6 +94,7 @@ export default async function DashboardPage() {
             </div>
           </div>
         )}
+        {linked.length>0 && <><KidsAssignments assignments={childDraws} title={`Your kids’ ${currentYear} assignments`}/>{linked.filter(c=>!childDraws.some(a=>a.giverId===c.id)).map(c=><p key={c.id} className="mt-2 text-sm text-muted">{c.firstName} {c.lastName}: no assignment yet.</p>)}</>}
       </main>
     </>
   );

@@ -4,6 +4,8 @@ import { eq, and, desc } from "drizzle-orm";
 import { getUser } from "@/lib/auth/getUser";
 import { getDb } from "@/lib/db";
 import { exchangeAssignments, exchangeGroups, exchangeGroupMembers, users } from "@/lib/db/schema";
+import { accessibleGroups, kidsAssignments } from "@/lib/exchange/kids";
+import KidsAssignments from "@/components/KidsAssignments";
 import Nav from "@/components/layout/Nav";
 
 export const metadata = { title: "Gift Exchange" };
@@ -14,11 +16,9 @@ export default async function ExchangePage() {
   const db = getDb(env.DB);
 
   // Get groups this user belongs to
-  const myGroups = await db
-    .select({ groupId: exchangeGroupMembers.groupId, groupName: exchangeGroups.name })
-    .from(exchangeGroupMembers)
-    .innerJoin(exchangeGroups, eq(exchangeGroupMembers.groupId, exchangeGroups.id))
-    .where(eq(exchangeGroupMembers.userId, user.id));
+  const groups = await accessibleGroups(db,user.id,user.isAdmin);
+  const myGroups = groups.map(g=>({groupId:g.id,groupName:g.name}));
+  const childDraws = await kidsAssignments(db,groups.map(g=>g.id));
 
   // Get all assignments where this user is the giver
   const myAssignments = await db
@@ -80,6 +80,7 @@ export default async function ExchangePage() {
           </div>
         )}
 
+        <h2 className="mt-8 text-xl font-semibold">Adults</h2>
         {/* Your assignments by year */}
         {years.length === 0 ? (
           <p className="mt-8 text-sm text-muted">No exchange assignments yet.</p>
@@ -110,6 +111,7 @@ export default async function ExchangePage() {
             ))}
           </div>
         )}
+        <KidsAssignments assignments={childDraws}/>
       </main>
     </>
   );

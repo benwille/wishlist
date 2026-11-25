@@ -4,6 +4,8 @@ import { eq, desc } from "drizzle-orm";
 import { getUser } from "@/lib/auth/getUser";
 import { getDb } from "@/lib/db";
 import { exchangeGroups, exchangeGroupMembers, exchangeAssignments, users } from "@/lib/db/schema";
+import { accessibleGroups, kidsAssignments } from "@/lib/exchange/kids";
+import KidsAssignments from "@/components/KidsAssignments";
 import Nav from "@/components/layout/Nav";
 import Link from "next/link";
 
@@ -16,21 +18,9 @@ export default async function GroupExchangePage({ params }: { params: Promise<{ 
   const [group] = await db.select().from(exchangeGroups).where(eq(exchangeGroups.id, Number(groupId))).limit(1);
   if (!group) notFound();
 
-  // Verify user is a member of this group (or admin)
-  if (!user.isAdmin) {
-    const [membership] = await db
-      .select()
-      .from(exchangeGroupMembers)
-      .where(eq(exchangeGroupMembers.groupId, group.id))
-      .limit(1);
-    // Check actual membership
-    const myMembership = await db
-      .select()
-      .from(exchangeGroupMembers)
-      .where(eq(exchangeGroupMembers.groupId, group.id));
-    const isMember = myMembership.some((m) => m.userId === user.id);
-    if (!isMember) notFound();
-  }
+  const groups = await accessibleGroups(db,user.id,user.isAdmin);
+  if (!groups.some(g=>g.id===group.id)) notFound();
+  const childDraws = await kidsAssignments(db,[group.id]);
 
   // Get all assignments for this group
   const assignments = await db
@@ -71,6 +61,7 @@ export default async function GroupExchangePage({ params }: { params: Promise<{ 
         <h1 className="text-2xl font-bold">{group.name} — Assignments</h1>
         <p className="mt-1 text-sm text-muted">Who has who in the {group.name} exchange.</p>
 
+        <h2 className="mt-6 text-xl font-semibold">Adults</h2>
         {years.length === 0 ? (
           <p className="mt-8 text-sm text-muted">No exchanges have been run for this group yet.</p>
         ) : (
@@ -93,6 +84,7 @@ export default async function GroupExchangePage({ params }: { params: Promise<{ 
             ))}
           </div>
         )}
+        <KidsAssignments assignments={childDraws}/>
       </main>
     </>
   );
