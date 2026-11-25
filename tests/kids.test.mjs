@@ -468,3 +468,24 @@ test("adult and kids draws cannot overwrite each other, including replacements",
  assert.equal((await drawAdults([{giverId:1,receiverId:3},{giverId:3,receiverId:2},{giverId:2,receiverId:1}])).status,200);
  assert.deepEqual(sqlite.prepare("SELECT * FROM child_assignments ORDER BY giver_id").all(),kidsBefore);
 });
+
+
+test("group assignment years include child-only years and separate adults/kids within each year", async t => {
+ const {sqlite}=adminFixture(t);
+ sqlite.exec(`
+  INSERT INTO children(id,first_name,last_name) VALUES (11,'EarlierKid','Test'),(12,'LaterKid','Test');
+  INSERT INTO child_assignments(group_id,giver_id,receiver_id,year) VALUES (1,11,12,2025),(1,12,11,2027);
+  INSERT INTO exchange_assignments(group_id,giver_id,receiver_id,year,created_at) VALUES (1,1,2,2026,CURRENT_TIMESTAMP);
+ `);
+ globalThis.__wishlistTestCookies=new Map([["session_id",{value:"session-2"}]]);
+ const html=renderPage(await GroupPage({params:Promise.resolve({groupId:"1"})}));
+ assert.ok(html.indexOf('id="assignments-2027"')<html.indexOf('id="assignments-2026"'));
+ assert.ok(html.indexOf('id="assignments-2026"')<html.indexOf('id="assignments-2025"'));
+ for(const year of [2025,2026,2027]) {
+  const start=html.indexOf(`id="assignments-${year}"`),end=html.indexOf('<section aria-labelledby="assignments-',start);
+  const section=html.slice(start,end===-1?undefined:end);
+  assert.match(section,new RegExp(`id="adults-${year}"`));assert.match(section,new RegExp(`id="kids-${year}"`));
+  if(year===2026){assert.match(section,/Owner Test/);assert.doesNotMatch(section,/EarlierKid|LaterKid/);}
+  else {assert.match(section,/EarlierKid Test|LaterKid Test/);assert.doesNotMatch(section,/Owner Test/);}
+ }
+});
