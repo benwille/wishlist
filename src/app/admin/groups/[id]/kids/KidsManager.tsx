@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 type Person = { id: number; firstName: string; lastName: string };
 type Child = Person & { adultIds: number[] };
@@ -36,6 +36,8 @@ export default function KidsManager({
   assignments: Saved[];
 }) {
   const router = useRouter();
+  const editForm = useRef<HTMLFormElement>(null);
+  const firstNameInput = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [message, setMessage] = useState("");
@@ -140,6 +142,17 @@ export default function KidsManager({
                   setAdults(
                     c.adultIds.filter((id) => adults.some((a) => a.id === id)),
                   );
+                  requestAnimationFrame(() => {
+                    editForm.current?.scrollIntoView({
+                      behavior: window.matchMedia(
+                        "(prefers-reduced-motion: reduce)",
+                      ).matches
+                        ? "auto"
+                        : "smooth",
+                      block: "start",
+                    });
+                    firstNameInput.current?.focus({ preventScroll: true });
+                  });
                 }}
               >
                 Edit
@@ -163,7 +176,9 @@ export default function KidsManager({
         ))}
       </section>
       <form
-        className={box}
+        ref={editForm}
+        aria-labelledby="child-form-heading"
+        className={`${box} scroll-mt-6`}
         onSubmit={async (e) => {
           e.preventDefault();
           const data = await act({
@@ -181,13 +196,14 @@ export default function KidsManager({
           }
         }}
       >
-        <h2 className="text-lg font-semibold">
-          {editing ? "Edit child" : "Add a child"}
+        <h2 id="child-form-heading" className="text-lg font-semibold">
+          {editing ? `Edit ${name(editing)}` : "Add a child"}
         </h2>
         <div className="flex flex-wrap gap-3">
           <label>
             First name{" "}
             <input
+              ref={firstNameInput}
               className={input}
               required
               maxLength={100}
@@ -231,23 +247,25 @@ export default function KidsManager({
             ))}
           </div>
         </fieldset>
-        <button className={button} disabled={busy || !adultIds.length}>
-          {editing ? "Save child" : "Add to kids’ exchange"}
-        </button>
-        {editing && (
-          <button
-            type="button"
-            className={button}
-            onClick={() => {
-              setEditing(null);
-              setFirst("");
-              setLast("");
-              setAdults([]);
-            }}
-          >
-            Cancel edit
+        <div className="flex flex-wrap gap-3 pt-2">
+          <button className={button} disabled={busy || !adultIds.length}>
+            {editing ? "Save child" : "Add to kids’ exchange"}
           </button>
-        )}
+          {editing && (
+            <button
+              type="button"
+              className={button}
+              onClick={() => {
+                setEditing(null);
+                setFirst("");
+                setLast("");
+                setAdults([]);
+              }}
+            >
+              Cancel edit
+            </button>
+          )}
+        </div>
       </form>
       {records.some((c) => !memberIds.includes(c.id)) && (
         <form
@@ -381,14 +399,14 @@ export default function KidsManager({
             ))}
             <div className="flex flex-wrap gap-3 pt-2">
               <button
-                className="min-h-11 rounded-lg bg-primary px-5 py-3 text-base font-medium text-white hover:bg-primary-dark disabled:opacity-50"
+                className={button}
                 disabled={busy}
                 onClick={saveDraw}
               >
                 Save assignments
               </button>
               <button
-                className="min-h-11 rounded-lg border border-border px-5 py-3 text-base font-medium hover:bg-background disabled:opacity-50"
+                className={button}
                 disabled={busy}
                 onClick={() => setPreview(null)}
               >
