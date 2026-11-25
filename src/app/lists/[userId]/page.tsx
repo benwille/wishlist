@@ -31,8 +31,10 @@ export default async function UserListPage({ params }: { params: Promise<{ userI
   // Strip claim info if viewing own list
   const isOwner = currentUser.id === listOwner.id;
   const safeItems = userItems.map((item) => ({
-    ...item,
+    id: item.id, name: item.name, description: item.description,
+    link: item.link, priceRange: item.priceRange, yearAdded: item.yearAdded,
     claimedBy: isOwner ? null : item.claimedBy,
+    guestClaimed: !isOwner && item.claimedByGuest !== null,
     purchased: isOwner ? 0 : item.purchased,
   }));
 

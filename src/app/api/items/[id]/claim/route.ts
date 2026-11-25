@@ -47,6 +47,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ error: "This gift has already been received" }, { status: 409 });
   }
 
+  if (item.claimedByGuest !== null) {
+    return NextResponse.json({ error: "Already claimed by someone else" }, { status: 409 });
+  }
+
   if (body.action === "unclaim") {
     if (item.claimedBy !== user.id) {
       return NextResponse.json({ error: "You haven't claimed this" }, { status: 403 });
@@ -67,6 +71,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     .where(and(
       eq(items.id, item.id),
       isNull(items.receivedAt),
+      isNull(items.claimedByGuest),
       item.claimedBy === null ? isNull(items.claimedBy) : eq(items.claimedBy, user.id),
     ))
     .returning({ id: items.id });
@@ -75,7 +80,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     // Another request may have claimed, released, or received this gift since
     // we read it. Never overwrite that change with a stale request.
     const [current] = await db.select().from(items).where(eq(items.id, item.id)).limit(1);
-    if (current && current.receivedAt === null && current.claimedBy === user.id &&
+    if (current && current.receivedAt === null && current.claimedByGuest === null && current.claimedBy === user.id &&
         (body.action === "claim" || (body.action === "purchase" && current.purchased === 1))) {
       return NextResponse.json({ ok: true });
     }

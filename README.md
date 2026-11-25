@@ -23,7 +23,9 @@ A family wishlist app where members can add items they want, browse each other's
 - Browse other users' lists and claim/mark items as purchased
 - Group-based visibility — users only see members of shared exchange groups
 - Gift exchange with random assignments and exclusion rules
-- Public share links (read-only, no auth required)
+- Public share links with guest claiming: no account or email required; browser recognition, optional emailed or copied private recovery links
+- Claim history saved atomically by database triggers, including member/guest changes, received status, and deletion of claimed items
+- Durable limits on rapid guest claims and recovery-email requests; owners can replace or disable shared links
 - PWA with offline fallback and install prompts
 - **Web Push notifications** with per-device subscriptions, in-app opt-in toggle, and admin broadcast tool
 - Automatic notifications for: item claimed (7 randomly-selected playful variants), exchange assignments (giver + receiver), new group member
@@ -50,12 +52,25 @@ npm run db:migrate:local   # apply migrations locally
 npm run db:migrate:remote  # apply migrations to production D1
 ```
 
+### Public gift claims
+
+- Shared wishlist links remain reusable. Existing links continue working until the owner replaces or disables them. Newly generated links contain 256 random bits.
+- Guest cookies last up to one year. Private recovery links last 90 days and can be reused across devices; they grant access only to that guest's claims on one wishlist.
+- Email is optional. Opening the emailed link and continuing confirms the address for later recovery. Entering an address alone never grants access. Guests on different devices can combine their own claims by verifying the same email. No recovery emails are sent without a request.
+- Email limits: one request per address per 60 seconds, three per address per hour, and ten per network per hour. These apply across public lists.
+- New public claims: twelve per guest/member per ten-minute window and sixty per network per ten-minute window. Other public changes have a sixty-per-actor window; releasing a gift does not consume the new-claim allowance. Creating new guest identities is limited to twenty per network per wishlist per hour.
+- Limits use atomic D1 counters with hashed keys; expired counters are removed during requests. Browser and recovery secrets are stored only as SHA-256 hashes. Shared pages are not indexed or cached, and private recovery pages include no third-party assets or analytics.
+- SQL triggers in `0005_public_guest_claims.sql` record actual claim changes with before/after state in `claim_history`. Retries and rejected requests don't add history. History survives deletion of an item or user; it is not a full item-content backup. Claim state and its history commit or roll back together.
+- Signed-in owners don't see claim status on their own shared page. Anonymous viewers can see availability, so this is surprise protection rather than a guarantee against deliberate peeking.
+
 ### Deploy
 
-Pushes to `main` trigger GitHub Actions CI/CD, which builds and deploys the main app, the email worker, and the push worker. Manual deploy:
+Pushes to `main` trigger GitHub Actions CI/CD, which tests, builds, applies pending D1 migrations, and deploys the main app, plus the email, push, and cron workers. Manual deploy:
 
 ```bash
-npm run deploy                              # main app
+npm run build:worker                        # build the main app
+npm run db:migrate:remote                   # apply pending D1 migrations
+npx wrangler deploy                        # publish the main app
 cd email-worker && npx wrangler deploy      # email worker
 cd push-worker && npx wrangler deploy       # push worker
 ```

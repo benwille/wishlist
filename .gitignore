@@ -12,6 +12,7 @@ node_modules
 
 # testing
 /coverage
+/tests/.wishlist-test-*/
 
 # next.js
 /.next/

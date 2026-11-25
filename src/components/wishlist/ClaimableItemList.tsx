@@ -18,6 +18,7 @@ type Item = {
   link: string | null;
   priceRange: string | null;
   claimedBy: number | null;
+  guestClaimed?: boolean;
   purchased: number;
   yearAdded: number;
 };
@@ -67,7 +68,7 @@ export default function ClaimableItemList({
       {error && <p role="alert" className="text-sm text-accent">{error}</p>}
       {items.map((item) => {
         const isMyClaim = item.claimedBy === currentUserId;
-        const isClaimed = !!item.claimedBy;
+        const isClaimed = !!item.claimedBy || !!item.guestClaimed;
         const isPurchased = item.purchased === 1;
 
         return (

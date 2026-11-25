@@ -24,8 +24,9 @@ export default async function MyListPage() {
     .where(eq(items.userId, user.id))
     .orderBy(desc(items.createdAt));
 
-  const activeItems = myItems.filter((i) => !i.receivedAt);
-  const receivedItems = myItems.filter((i) => i.receivedAt);
+  const safeItems = myItems.map((item) => ({ ...item, claimedBy: null, claimedByGuest: null, purchased: 0 }));
+  const activeItems = safeItems.filter((i) => !i.receivedAt);
+  const receivedItems = safeItems.filter((i) => i.receivedAt);
 
   return (
     <>

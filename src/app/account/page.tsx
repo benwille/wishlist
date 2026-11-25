@@ -4,12 +4,16 @@ import Nav from "@/components/layout/Nav";
 import PasswordForm from "./PasswordForm";
 import ShareLinkSection from "./ShareLinkSection";
 import PushNotificationToggle from "./PushNotificationToggle";
+import { eq } from "drizzle-orm";
+import { getDb } from "@/lib/db";
+import { users } from "@/lib/db/schema";
 
 export const metadata = { title: "Account" };
 
 export default async function AccountPage() {
   const user = await getUser();
   const { env } = getCloudflareContext();
+  const [profile] = await getDb(env.DB).select({ shareToken: users.shareToken }).from(users).where(eq(users.id, user.id)).limit(1);
 
   return (
     <>
@@ -36,7 +40,7 @@ export default async function AccountPage() {
         </div>
 
         <div className="mt-6 rounded-xl border border-border bg-surface p-6 shadow-sm">
-          <ShareLinkSection userId={user.id} />
+          <ShareLinkSection existingToken={profile?.shareToken ?? null} />
         </div>
       </main>
     </>

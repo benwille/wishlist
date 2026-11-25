@@ -15,6 +15,48 @@ export const users = sqliteTable("users", {
   updatedAt: text("updated_at").notNull().$defaultFn(() => new Date().toISOString()),
 });
 
+export const guestClaimants = sqliteTable("guest_claimants", {
+  id: text("id").primaryKey(),
+  listOwnerId: integer("list_owner_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  email: text("email"),
+  mergedInto: text("merged_into"),
+  createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => [uniqueIndex("idx_guest_email_list").on(table.listOwnerId, table.email)]);
+
+export const guestSessions = sqliteTable("guest_sessions", {
+  tokenHash: text("token_hash").primaryKey(),
+  claimantId: text("claimant_id").notNull().references(() => guestClaimants.id, { onDelete: "cascade" }),
+  expiresAt: integer("expires_at").notNull(),
+});
+
+export const guestAccessLinks = sqliteTable("guest_access_links", {
+  tokenHash: text("token_hash").primaryKey(),
+  claimantId: text("claimant_id").notNull().references(() => guestClaimants.id, { onDelete: "cascade" }),
+  email: text("email"),
+  expiresAt: integer("expires_at").notNull(),
+});
+
+export const publicRateLimits = sqliteTable("public_rate_limits", {
+  key: text("key").primaryKey(),
+  windowStart: integer("window_start").notNull(),
+  count: integer("count").notNull(),
+  expiresAt: integer("expires_at").notNull(),
+}, (table) => [index("idx_public_limits_expiry").on(table.expiresAt)]);
+
+// History deliberately has no foreign keys: deleting an item or user must not
+// erase the evidence needed to investigate or repair a claim change.
+export const claimHistory = sqliteTable("claim_history", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  itemId: integer("item_id").notNull(),
+  listOwnerId: integer("list_owner_id").notNull(),
+  actorUserId: integer("actor_user_id"),
+  actorGuestId: text("actor_guest_id"),
+  action: text("action").notNull(),
+  beforeState: text("before_state").notNull(),
+  afterState: text("after_state"),
+  createdAt: text("created_at").notNull(),
+}, (table) => [index("idx_claim_history_item_time").on(table.itemId, table.createdAt)]);
+
 export const items = sqliteTable("items", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   userId: integer("user_id").notNull().references(() => users.id),
@@ -23,6 +65,7 @@ export const items = sqliteTable("items", {
   link: text("link"),
   priceRange: text("price_range"),
   claimedBy: integer("claimed_by").references(() => users.id),
+  claimedByGuest: text("claimed_by_guest").references(() => guestClaimants.id),
   purchased: integer("purchased").notNull().default(0),
   receivedAt: text("received_at"),
   yearAdded: integer("year_added").notNull(),

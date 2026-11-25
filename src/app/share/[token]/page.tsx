@@ -3,7 +3,10 @@ import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { and, eq, desc, isNull } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { users, items } from "@/lib/db/schema";
-import { formatPrice } from "@/lib/formatPrice";
+import { cookies } from "next/headers";
+import { getUserOptional } from "@/lib/auth/getUser";
+import { getGuest, guestCookieName } from "@/lib/share/access";
+import PublicWishlist from "./PublicWishlist";
 
 export async function generateMetadata({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
@@ -13,7 +16,7 @@ export async function generateMetadata({ params }: { params: Promise<{ token: st
   const [user] = await db.select().from(users).where(eq(users.shareToken, token)).limit(1);
   if (!user || !user.active) return { title: "Not Found" };
 
-  return { title: `${user.firstName}'s Wishlist` };
+  return { title: `${user.firstName}'s Wishlist`, robots: { index: false, follow: false } };
 }
 
 export default async function SharePage({ params }: { params: Promise<{ token: string }> }) {
@@ -30,48 +33,25 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
     .where(and(eq(items.userId, user.id), isNull(items.receivedAt)))
     .orderBy(desc(items.createdAt));
 
+  const member = await getUserOptional();
+  const cookieStore = await cookies();
+  const guest = await getGuest(db, user.id, cookieStore.get(guestCookieName(user.id))?.value);
+  const isOwner = member?.id === user.id;
+  const safeItems = userItems.map((item) => ({
+    id: item.id, name: item.name, description: item.description, link: item.link,
+    priceRange: item.priceRange,
+    claimed: !isOwner && (item.claimedBy !== null || item.claimedByGuest !== null),
+    mine: !isOwner && ((member != null && item.claimedBy === member.id) || (guest != null && item.claimedByGuest === guest.id)),
+    purchased: !isOwner && item.purchased === 1,
+  }));
+  const hasGuestClaims = !isOwner && guest != null && userItems.some((item) => item.claimedByGuest === guest.id);
+
   return (
     <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-8">
       <h1 className="text-2xl font-bold">{user.firstName}&apos;s Wishlist</h1>
-      <p className="mt-1 text-sm text-muted">{userItems.length} items</p>
-
-      <div className="mt-6 space-y-3">
-        {userItems.length === 0 ? (
-          <p className="text-sm text-muted">{user.firstName} hasn&apos;t added anything yet.</p>
-        ) : (
-          userItems.map((item) => (
-            <div
-              key={item.id}
-              className="rounded-xl border border-border bg-surface p-4 shadow-sm"
-            >
-              <div className="min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  {item.link ? (
-                    <a
-                      href={item.link}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="font-medium text-primary hover:underline"
-                    >
-                      {item.name}
-                    </a>
-                  ) : (
-                    <span className="font-medium">{item.name}</span>
-                  )}
-                  {item.priceRange && (
-                    <span className="rounded-full bg-primary-light px-2 py-0.5 text-xs font-medium text-primary-dark">
-                      {formatPrice(item.priceRange)}
-                    </span>
-                  )}
-                </div>
-                {item.description && (
-                  <p className="mt-1 text-sm text-muted">{item.description}</p>
-                )}
-              </div>
-            </div>
-          ))
-        )}
-      </div>
+      <p className="mt-1 text-sm text-muted">{userItems.length} {userItems.length === 1 ? "item" : "items"}</p>
+      {!isOwner && <p className="mt-3 text-muted">Choose a gift and claim it so others know it&apos;s taken. No signup needed.</p>}
+      <PublicWishlist token={token} items={safeItems} isOwner={isOwner} hasGuestClaims={hasGuestClaims} />
     </main>
   );
 }
