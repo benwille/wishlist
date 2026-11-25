@@ -379,16 +379,22 @@ export default function KidsManager({
                 {a.giverName} → {a.receiverName}
               </p>
             ))}
-            <button className={button} disabled={busy} onClick={saveDraw}>
-              Save assignments
-            </button>
-            <button
-              className={button}
-              disabled={busy}
-              onClick={() => setPreview(null)}
-            >
-              Cancel
-            </button>
+            <div className="flex flex-wrap gap-3 pt-2">
+              <button
+                className="min-h-11 rounded-lg bg-primary px-5 py-3 text-base font-medium text-white hover:bg-primary-dark disabled:opacity-50"
+                disabled={busy}
+                onClick={saveDraw}
+              >
+                Save assignments
+              </button>
+              <button
+                className="min-h-11 rounded-lg border border-border px-5 py-3 text-base font-medium hover:bg-background disabled:opacity-50"
+                disabled={busy}
+                onClick={() => setPreview(null)}
+              >
+                Cancel
+              </button>
+            </div>
           </div>
         )}
       </section>
