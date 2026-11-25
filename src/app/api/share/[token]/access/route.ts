@@ -61,7 +61,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       }
     }
     return NextResponse.json({ ok: true, message: body.mode === "save"
-      ? "Email sent. Open the private link to confirm recovery for your claims."
+      ? "Check your inbox and spam folder. Open the private link to confirm recovery for your claims."
       : "If that email has saved claims on this wishlist, we've sent a private access link. Check your inbox and spam folder." }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) { return shareError(error); }
 }

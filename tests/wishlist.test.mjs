@@ -399,6 +399,7 @@ test("email recovery requires inbox access; GET previews never change session or
   const url = latestEmailLink(state);
   const preview = openAccessGet();
   assert.equal(preview.status, 200);
+  assert.equal(preview.headers.get("Referrer-Policy"), "origin", "native browser forms need their origin preserved while the private URL path stays hidden");
   assert.equal(preview.headers.get("set-cookie"), null);
   assert.equal(state.sqlite.prepare("SELECT count(*) AS n FROM guest_sessions").get().n, 1);
   assert.equal(state.history().length, 1);
@@ -554,4 +555,17 @@ test("turning off sharing stops a guest claim already in flight before its write
   assert.equal((await guestAction("claim")).status, 409);
   assert.equal(state.sqlite.prepare("SELECT claimed_by_guest FROM items").get().claimed_by_guest, null);
   assert.equal(state.history().length, 0);
+});
+
+test("recovery email confirmation is returned only after the email worker accepts it", async (t) => {
+  fixedClock(t);
+  const state = fixture(t);
+  const cookie = responseCookie(await guestAction("claim"));
+  globalThis.__wishlistTestContext.env.EMAIL_WORKER.fetch = async () => Response.json({ error: "test delivery failure" }, { status: 500 });
+  const response = await accessAction("save", "friend@example.invalid", { cookie });
+  assert.equal(response.status, 503);
+  assert.match((await response.json()).error, /Couldn't send the email/);
+  assert.equal(state.sqlite.prepare("SELECT count(*) AS n FROM guest_access_links").get().n, 0);
+  assert.equal(state.history().length, 1);
+  assert.ok(state.sqlite.prepare("SELECT claimed_by_guest FROM items").get().claimed_by_guest);
 });

@@ -7,7 +7,9 @@ import { GUEST_MAX_AGE, assertSameOrigin, hash, limit, network, randomToken, set
 
 const headers = {
   "Content-Type": "text/html; charset=utf-8", "Cache-Control": "private, no-store",
-  "Referrer-Policy": "no-referrer", "X-Robots-Tag": "noindex, nofollow",
+  // "origin" never includes the private URL's path, and unlike "no-referrer"
+  // preserves the Origin header on a browser's native form POST.
+  "Referrer-Policy": "origin", "X-Robots-Tag": "noindex, nofollow",
   "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'",
 };
 function document(message: string, button = false, status = 200) {
