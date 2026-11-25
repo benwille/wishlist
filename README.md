@@ -39,6 +39,7 @@ A family wishlist app where members can add items they want, browse each other's
 npm install
 npm run dev           # local Next.js dev server
 npm run preview       # local Cloudflare Workers preview
+npm test              # claim and public-list regressions (Node.js 22.16+)
 ```
 
 ### Database

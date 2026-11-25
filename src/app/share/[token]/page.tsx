@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
-import { eq, desc } from "drizzle-orm";
+import { and, eq, desc, isNull } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { users, items } from "@/lib/db/schema";
 import { formatPrice } from "@/lib/formatPrice";
@@ -27,7 +27,7 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
   const userItems = await db
     .select()
     .from(items)
-    .where(eq(items.userId, user.id))
+    .where(and(eq(items.userId, user.id), isNull(items.receivedAt)))
     .orderBy(desc(items.createdAt));
 
   return (

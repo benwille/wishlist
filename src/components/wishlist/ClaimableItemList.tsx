@@ -33,17 +33,29 @@ export default function ClaimableItemList({
 }) {
   const router = useRouter();
   const [acting, setActing] = useState<number | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   async function handleClaim(itemId: number, action: "claim" | "unclaim" | "purchase") {
     setActing(itemId);
-    const res = await fetch(`/api/items/${itemId}/claim`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action }),
-    });
-    if (res.ok) trackEvent(CLAIM_EVENTS[action]);
-    router.refresh();
-    setActing(null);
+    setError(null);
+    try {
+      const res = await fetch(`/api/items/${itemId}/claim`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
+      });
+      if (res.ok) {
+        trackEvent(CLAIM_EVENTS[action]);
+      } else {
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        setError(data.error || "Couldn't update this gift. Please try again.");
+      }
+      router.refresh();
+    } catch {
+      setError("Couldn't reach the server. Please check your connection and try again.");
+    } finally {
+      setActing(null);
+    }
   }
 
   if (items.length === 0) {
@@ -52,6 +64,7 @@ export default function ClaimableItemList({
 
   return (
     <div className="space-y-3">
+      {error && <p role="alert" className="text-sm text-accent">{error}</p>}
       {items.map((item) => {
         const isMyClaim = item.claimedBy === currentUserId;
         const isClaimed = !!item.claimedBy;
