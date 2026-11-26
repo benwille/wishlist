@@ -1,11 +1,14 @@
 import Link from "next/link";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 import { getUser } from "@/lib/auth/getUser";
 import { getDb } from "@/lib/db";
-import { exchangeAssignments, exchangeGroups, exchangeGroupMembers, users } from "@/lib/db/schema";
-import { accessibleGroups, kidsAssignments } from "@/lib/exchange/kids";
-import KidsAssignments from "@/components/KidsAssignments";
+import { exchangeAssignments, exchangeGroups, users } from "@/lib/db/schema";
+import {
+  accessibleGroups,
+  kidsAssignmentsForAdult,
+  linkedKids,
+} from "@/lib/exchange/kids";
 import Nav from "@/components/layout/Nav";
 
 export const metadata = { title: "Gift Exchange" };
@@ -16,9 +19,10 @@ export default async function ExchangePage() {
   const db = getDb(env.DB);
 
   // Get groups this user belongs to
-  const groups = await accessibleGroups(db,user.id,user.isAdmin);
-  const myGroups = groups.map(g=>({groupId:g.id,groupName:g.name}));
-  const childDraws = await kidsAssignments(db,groups.map(g=>g.id));
+  const groups = await accessibleGroups(db, user.id, user.isAdmin);
+  const myGroups = groups.map((g) => ({ groupId: g.id, groupName: g.name }));
+  const linked = await linkedKids(db, user.id);
+  const childDraws = await kidsAssignmentsForAdult(db, user.id);
 
   // Get all assignments where this user is the giver
   const myAssignments = await db
@@ -31,7 +35,10 @@ export default async function ExchangePage() {
       receiverLastName: users.lastName,
     })
     .from(exchangeAssignments)
-    .innerJoin(exchangeGroups, eq(exchangeAssignments.groupId, exchangeGroups.id))
+    .innerJoin(
+      exchangeGroups,
+      eq(exchangeAssignments.groupId, exchangeGroups.id),
+    )
     .innerJoin(users, eq(exchangeAssignments.receiverId, users.id))
     .where(eq(exchangeAssignments.giverId, user.id))
     .orderBy(desc(exchangeAssignments.year));
@@ -43,7 +50,9 @@ export default async function ExchangePage() {
     list.push(a);
     byYear.set(a.year, list);
   }
-  const years = [...byYear.keys()].sort((a, b) => b - a);
+  const years = [
+    ...new Set([...byYear.keys(), ...childDraws.map((a) => a.year)]),
+  ].sort((a, b) => b - a);
 
   return (
     <>
@@ -52,11 +61,16 @@ export default async function ExchangePage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold">Gift Exchange</h1>
-            <p className="mt-1 text-sm text-muted">Your exchange assignments by year.</p>
+            <p className="mt-1 text-sm text-muted">
+              Your assignments and your linked kids’ assignments, grouped by
+              year.
+            </p>
           </div>
           {user.isAdmin && (
-            <Link href="/admin/groups"
-              className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-dark">
+            <Link
+              href="/admin/groups"
+              className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-dark"
+            >
               Manage Groups
             </Link>
           )}
@@ -68,50 +82,101 @@ export default async function ExchangePage() {
             <h2 className="text-lg font-semibold mb-3">Your Groups</h2>
             <div className="flex flex-wrap gap-2">
               {myGroups.map((g) => (
-                <Link
+                <a
                   key={g.groupId}
                   href={`/exchange/${g.groupId}`}
                   className="rounded-lg border border-border bg-surface px-4 py-2 text-sm font-medium hover:border-primary transition-all"
                 >
-                  {g.groupName} — View all assignments →
-                </Link>
+                  {g.groupName} — View all assignments
+                </a>
               ))}
             </div>
           </div>
         )}
 
-        <h2 className="mt-8 text-xl font-semibold">Adults</h2>
-        {/* Your assignments by year */}
         {years.length === 0 ? (
-          <p className="mt-8 text-sm text-muted">No exchange assignments yet.</p>
+          <p className="mt-8 text-sm text-muted">
+            No assignments for you or your linked kids yet.
+          </p>
         ) : (
           <div className="mt-8 space-y-8">
             {years.map((year) => (
-              <div key={year}>
-                <h2 className="text-lg font-semibold mb-3">{year}</h2>
-                <div className="space-y-3">
-                  {byYear.get(year)!.map((a) => (
-                    <Link
-                      key={`${a.groupId}-${a.receiverId}`}
-                      href={`/lists/${a.receiverId}`}
-                      className="flex items-center gap-3 rounded-xl border border-border bg-surface p-4 shadow-sm hover:border-primary transition-all"
+              <section key={year} aria-labelledby={`personal-year-${year}`}>
+                <h2
+                  id={`personal-year-${year}`}
+                  className="mb-4 text-xl font-semibold"
+                >
+                  {year}
+                </h2>
+                <div className="space-y-5">
+                  <section aria-labelledby={`your-assignment-${year}`}>
+                    <h3
+                      id={`your-assignment-${year}`}
+                      className="mb-3 text-lg font-semibold"
                     >
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary-light text-primary font-bold text-sm">
-                        {a.receiverFirstName[0]}{a.receiverLastName[0]}
+                      Your assignments
+                    </h3>
+                    <div className="space-y-3">
+                      {(byYear.get(year) || []).map((a) => (
+                        <Link
+                          key={`${a.groupId}-${a.receiverId}`}
+                          href={`/lists/${a.receiverId}`}
+                          className="block rounded-xl border border-border bg-surface p-4 shadow-sm hover:border-primary"
+                        >
+                          <p className="break-words font-medium">
+                            You’re buying for {a.receiverFirstName}{" "}
+                            {a.receiverLastName}
+                          </p>
+                          <p className="mt-1 text-sm text-muted">
+                            {a.groupName} · View list
+                          </p>
+                        </Link>
+                      ))}
+                      {!byYear.get(year)?.length && (
+                        <p className="text-sm text-muted">
+                          No assignment for you in {year}.
+                        </p>
+                      )}
+                    </div>
+                  </section>
+                  {linked.length > 0 && (
+                    <section aria-labelledby={`your-kids-${year}`}>
+                      <h3
+                        id={`your-kids-${year}`}
+                        className="mb-3 text-lg font-semibold"
+                      >
+                        Your kids’ assignments
+                      </h3>
+                      <div className="space-y-3">
+                        {childDraws
+                          .filter((a) => a.year === year)
+                          .map((a) => (
+                            <div
+                              key={`${a.groupId}-${a.giverId}`}
+                              className="rounded-xl border border-border bg-surface p-4 shadow-sm"
+                            >
+                              <p className="break-words font-medium">
+                                {a.giverFirstName} {a.giverLastName} →{" "}
+                                {a.receiverFirstName} {a.receiverLastName}
+                              </p>
+                              <p className="mt-1 text-sm text-muted">
+                                {a.groupName}
+                              </p>
+                            </div>
+                          ))}
+                        {!childDraws.some((a) => a.year === year) && (
+                          <p className="text-sm text-muted">
+                            No assignments for your kids in {year}.
+                          </p>
+                        )}
                       </div>
-                      <div>
-                        <p className="font-medium">You&apos;re buying for {a.receiverFirstName} {a.receiverLastName}</p>
-                        <p className="text-sm text-muted">{a.groupName}</p>
-                      </div>
-                      <span className="ml-auto text-sm text-primary">View list →</span>
-                    </Link>
-                  ))}
+                    </section>
+                  )}
                 </div>
-              </div>
+              </section>
             ))}
           </div>
         )}
-        <KidsAssignments assignments={childDraws}/>
       </main>
     </>
   );

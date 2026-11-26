@@ -52,6 +52,26 @@ try {
     await context.request.get(origin + "/api/people")
   ).json();
   const kids = profiles.people.filter((p) => names.includes(p.firstName));
+  const unrelatedName = `OtherHousehold${suffix}`;
+  const unrelatedCreated = await context.request.post(origin + "/api/people", {
+    data: {
+      action: "create",
+      profileType: "child",
+      firstName: unrelatedName,
+      lastName: "Test",
+      guardianIds: [
+        profiles.people.find(
+          (p) => p.firstName === "Preview" && p.lastName === "Admin",
+        ).id,
+      ],
+    },
+  });
+  assert.ok(unrelatedCreated.ok());
+  const unrelated = {
+    id: (await unrelatedCreated.json()).id,
+    firstName: unrelatedName,
+    lastName: "Test",
+  };
   assert.equal(kids.length, 2);
   assert.ok(kids.every((p) => p.guardianIds.length === 4));
   await page
@@ -74,7 +94,7 @@ try {
   });
   assert.equal(
     await firstGroup
-      .getByRole("button", { name: `Remove ${names[0]}`, exact: true })
+      .getByRole("button", { name: `Remove ${names[0]} Test`, exact: true })
       .count(),
     0,
   );
@@ -83,7 +103,7 @@ try {
     .selectOption(String(kids[0].id));
   await page.getByRole("button", { name: "Add child", exact: true }).click();
   await firstGroup
-    .getByRole("button", { name: `Remove ${names[0]}`, exact: true })
+    .getByRole("button", { name: `Remove ${names[0]} Test`, exact: true })
     .waitFor();
   const created = await context.request.post(origin + "/api/exchange/groups", {
     data: { name: `Friends ${suffix}` },
@@ -95,13 +115,16 @@ try {
     .getByRole("checkbox", { name: "Kids exchange enabled", exact: true })
     .check();
   await page.waitForFunction(() => !document.querySelector("[aria-busy=true]"));
-  for (const kid of kids) {
+  for (const kid of [...kids, unrelated]) {
     await page
       .getByLabel("Add child participant", { exact: true })
       .selectOption(String(kid.id));
     await page.getByRole("button", { name: "Add child", exact: true }).click();
     await page
-      .getByRole("button", { name: `Remove ${kid.firstName}`, exact: true })
+      .getByRole("button", {
+        name: `Remove ${kid.firstName} ${kid.lastName}`,
+        exact: true,
+      })
       .waitFor();
   }
   for (const [index, kid] of kids.entries())
@@ -137,6 +160,19 @@ try {
   await draw
     .getByRole("button", { name: "Save kids’ assignments", exact: true })
     .waitFor({ state: "hidden" });
+  await draw
+    .getByText("Assignments saved for 2050.", { exact: true })
+    .waitFor();
+  assert.equal(
+    await page.getByLabel("Kids draw year", { exact: true }).inputValue(),
+    "2050",
+  );
+  await draw
+    .getByRole("button", { name: "Redraw kids’ draw", exact: true })
+    .click();
+  await draw
+    .getByRole("heading", { name: "Replacement preview for 2050", exact: true })
+    .waitFor();
   // Exercise the adult controls on the same page and keep the kids draw intact.
   const adultProfiles = ["Admin", "Parent"].map((lastName) =>
     profiles.people.find(
@@ -184,6 +220,20 @@ try {
   await adultDraw
     .getByRole("button", { name: "Save adult assignments", exact: true })
     .waitFor({ state: "hidden" });
+  await adultDraw
+    .getByText("Assignments saved for 2050.", { exact: true })
+    .waitFor();
+  await draw
+    .getByRole("heading", { name: "Replacement preview for 2050", exact: true })
+    .waitFor();
+  page.once("dialog", (dialog) => dialog.dismiss());
+  await draw
+    .getByRole("button", { name: "Replace kids’ assignments", exact: true })
+    .click();
+  await draw
+    .getByRole("heading", { name: "Replacement preview for 2050", exact: true })
+    .waitFor();
+  await draw.getByRole("button", { name: "Cancel", exact: true }).click();
   await page
     .getByRole("link", { name: "View all assignments", exact: true })
     .click();
@@ -194,7 +244,7 @@ try {
       .getByRole("region", { name: "Kids", exact: true })
       .locator("p")
       .count(),
-    2,
+    3,
   );
   assert.equal(
     await year
@@ -237,6 +287,17 @@ try {
   ).json();
   assert.deepEqual(visible.adults, []);
   assert.ok(visible.people.every((p) => p.guardianIds === undefined));
+  assert.ok(!visible.people.some((p) => p.id === unrelated.id));
+  await page.goto(origin + "/exchange");
+  const personalYear = page.getByRole("region", { name: "2050", exact: true });
+  const ownRows = await personalYear
+    .getByRole("region", { name: "Your kids’ assignments", exact: true })
+    .locator("p.font-medium")
+    .allTextContents();
+  assert.ok(ownRows.some((row) => row.startsWith(names[0] + " Test →")));
+  assert.ok(ownRows.some((row) => row.startsWith(names[1] + " Test →")));
+  assert.ok(!ownRows.some((row) => row.startsWith(unrelatedName + " Test →")));
+
   assert.equal(
     (
       await context.request.post(origin + "/api/people", {
@@ -254,7 +315,7 @@ try {
   await page.goto(origin + `/exchange/${group.id}`);
   await page.getByRole("heading", { name: "2050", exact: true }).waitFor();
   console.log(
-    "Shared People browser passed: Users redirect, Child type, four adult links, scoped parent directory, profile reuse across two groups, group exclusions/settings, independent adult and kids draw saves, year columns, edit focus and mobile widths.",
+    "Shared People browser passed: Users redirect, Child type, four adult links, scoped parent directory, profile reuse across two groups, group exclusions/settings, independent draw saves, saved status and cancelled redraw, personal yearly scoping, year columns, edit focus and mobile widths.",
   );
 } finally {
   await browser.close();

@@ -138,7 +138,7 @@ export default function GroupPeopleManager({
               <h3 className="text-lg font-semibold">
                 {kind === "adult" ? "Adults" : "Kids"}
               </h3>
-              <ul className="mt-3 space-y-3">
+              <ul className="mt-3 flex flex-wrap gap-2">
                 {records
                   .filter(
                     (p) => p.profileType === kind && memberIds.includes(p.id),
@@ -146,17 +146,18 @@ export default function GroupPeopleManager({
                   .map((p) => (
                     <li
                       key={p.id}
-                      className="flex flex-wrap items-center justify-between gap-2"
+                      className="inline-flex max-w-full items-center gap-2 rounded-full bg-primary-light px-3 py-1 text-sm font-medium text-primary-dark"
                     >
-                      <span>{name(p.id)}</span>
+                      <span className="min-w-0 break-words">{name(p.id)}</span>
                       <button
-                        className={button}
+                        className="shrink-0 rounded px-1 text-primary hover:text-accent disabled:opacity-50"
+                        aria-label={`Remove ${name(p.id)}`}
                         disabled={busy}
                         onClick={() =>
                           void act({ action: "remove", personId: p.id })
                         }
                       >
-                        Remove {p.firstName}
+                        ×
                       </button>
                     </li>
                   ))}
@@ -193,12 +194,15 @@ export default function GroupPeopleManager({
                 <button
                   className={button}
                   disabled={busy || !selected[kind]}
-                  onClick={() =>
-                    void act({
-                      action: "add",
-                      personId: Number(selected[kind]),
-                    })
-                  }
+                  onClick={async () => {
+                    if (
+                      await act({
+                        action: "add",
+                        personId: Number(selected[kind]),
+                      })
+                    )
+                      setSelected((current) => ({ ...current, [kind]: "" }));
+                  }}
                 >
                   Add {kind === "adult" ? "adult" : "child"}
                 </button>
@@ -230,13 +234,13 @@ export default function GroupPeopleManager({
                   .map((e) => (
                     <div
                       key={`${e.personId1}-${e.personId2}`}
-                      className="flex flex-wrap items-center justify-between gap-2"
+                      className="flex items-center justify-between gap-3 rounded-lg bg-accent-light/50 px-3 py-2"
                     >
-                      <span className="text-sm">
+                      <span className="min-w-0 break-words text-sm">
                         {name(e.personId1)} / {name(e.personId2)}
                       </span>
                       <button
-                        className={button}
+                        className="shrink-0 text-sm text-muted hover:text-accent disabled:opacity-50"
                         disabled={busy}
                         onClick={() =>
                           void act({
@@ -255,7 +259,7 @@ export default function GroupPeopleManager({
                 {[0, 1].map((index) => (
                   <select
                     key={index}
-                    className={`${select} w-full`}
+                    className={`${select} flex-1 basis-28`}
                     aria-label={`${kind === "adult" ? "Adult" : "Child"} exclusion ${index + 1}`}
                     value={pairs[kind][index]}
                     onChange={(e) =>
@@ -288,13 +292,16 @@ export default function GroupPeopleManager({
                     !pairs[kind][1] ||
                     pairs[kind][0] === pairs[kind][1]
                   }
-                  onClick={() =>
-                    void act({
-                      action: "exclude",
-                      personId1: Number(pairs[kind][0]),
-                      personId2: Number(pairs[kind][1]),
-                    })
-                  }
+                  onClick={async () => {
+                    if (
+                      await act({
+                        action: "exclude",
+                        personId1: Number(pairs[kind][0]),
+                        personId2: Number(pairs[kind][1]),
+                      })
+                    )
+                      setPairs((current) => ({ ...current, [kind]: ["", ""] }));
+                  }}
                 >
                   Add {kind === "adult" ? "adult" : "kids’"} exclusion
                 </button>
@@ -310,6 +317,13 @@ export default function GroupPeopleManager({
         </p>
         <div className="mt-4 grid gap-6 md:grid-cols-2">
           <ExchangeDraw
+            key={JSON.stringify([
+              adultEnabled,
+              memberIds.filter((id) =>
+                records.some((p) => p.id === id && p.profileType === "adult"),
+              ),
+              exclusions.filter((e) => e.profileType === "adult"),
+            ])}
             groupId={groupId}
             kind="adult"
             enabled={adultEnabled}
@@ -321,6 +335,13 @@ export default function GroupPeopleManager({
             savedYears={adultYears}
           />
           <ExchangeDraw
+            key={JSON.stringify([
+              kidsEnabled,
+              memberIds.filter((id) =>
+                records.some((p) => p.id === id && p.profileType === "child"),
+              ),
+              exclusions.filter((e) => e.profileType === "child"),
+            ])}
             groupId={groupId}
             kind="child"
             enabled={kidsEnabled}

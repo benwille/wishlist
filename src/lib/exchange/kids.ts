@@ -21,10 +21,9 @@ export async function accessibleGroups(
         .where(inArray(exchangeGroups.id, ids))
     : [];
 }
-export async function kidsAssignments(db: Database, groupIds: number[]) {
+function kidsAssignmentQuery(db: Database) {
   const giver = alias(children, "child_giver"),
     receiver = alias(children, "child_receiver");
-  if (!groupIds.length) return [];
   return db
     .select({
       groupId: childAssignments.groupId,
@@ -39,8 +38,20 @@ export async function kidsAssignments(db: Database, groupIds: number[]) {
     .from(childAssignments)
     .innerJoin(giver, eq(childAssignments.giverId, giver.id))
     .innerJoin(receiver, eq(childAssignments.receiverId, receiver.id))
-    .innerJoin(exchangeGroups, eq(childAssignments.groupId, exchangeGroups.id))
-    .where(inArray(childAssignments.groupId, groupIds));
+    .innerJoin(exchangeGroups, eq(childAssignments.groupId, exchangeGroups.id));
+}
+export async function kidsAssignments(db: Database, groupIds: number[]) {
+  if (!groupIds.length) return [];
+  return kidsAssignmentQuery(db).where(
+    inArray(childAssignments.groupId, groupIds),
+  );
+}
+// The personal overview follows explicit adult links, including a child's
+// historical assignments after they leave an exchange roster.
+export async function kidsAssignmentsForAdult(db: Database, adultId: number) {
+  return kidsAssignmentQuery(db)
+    .innerJoin(childAdults, eq(childAdults.childId, childAssignments.giverId))
+    .where(eq(childAdults.adultId, adultId));
 }
 export async function linkedKids(db: Database, adultId: number) {
   return db

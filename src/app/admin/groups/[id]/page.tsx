@@ -100,7 +100,7 @@ export default async function GroupPage({
       <p className="mt-2 text-muted">
         Manage this group’s adults, kids, exclusions and independent draws.
       </p>
-      <GroupPeopleManager key={JSON.stringify(data)} {...data} />
+      <GroupPeopleManager key={groupId} {...data} />
     </main>
   );
 }

@@ -28,6 +28,7 @@ export default function ExchangeDraw({
     [preview, setPreview] = useState<Assignment[] | null>(null),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
+  const saved = savedYears.includes(year);
   async function run(save: boolean) {
     if (save && !preview) return;
     const replace = save && savedYears.includes(year);
@@ -92,10 +93,40 @@ export default function ExchangeDraw({
           ? "Avoids recipients from the previous two years."
           : "Avoids last year’s recipient and this group’s kids’ exclusions."}
       </p>
+      <div className="mt-4 flex flex-wrap items-end gap-3">
+        <label className="text-sm">
+          {kind === "adult" ? "Adult draw year" : "Kids draw year"}
+          <input
+            className="mt-1 block w-28 rounded-lg border border-border bg-background px-3 py-2"
+            type="number"
+            min={2000}
+            max={9999}
+            value={year}
+            disabled={busy}
+            onChange={(e) => {
+              setYear(Number(e.target.value));
+              setPreview(null);
+              setError("");
+            }}
+          />
+        </label>
+      </div>
+      {saved && (
+        <div className="mt-3 space-y-2">
+          <p role="status" className="font-medium text-primary">
+            Assignments saved for {year}.
+          </p>
+          <a
+            className="inline-block text-sm text-primary hover:underline"
+            href={`/exchange/${groupId}#assignments-${year}`}
+          >
+            View assignments
+          </a>
+        </div>
+      )}
       {!enabled ? (
         <p className="mt-3 text-sm text-muted">
-          Enable this exchange in Group settings to run a draw. Saved history is
-          retained.
+          This exchange is disabled. Saved assignments remain available.
         </p>
       ) : memberCount < 2 ? (
         <p className="mt-3 text-sm text-muted">
@@ -103,32 +134,26 @@ export default function ExchangeDraw({
         </p>
       ) : (
         <>
-          <div className="mt-4 flex flex-wrap items-end gap-3">
-            <label className="text-sm">
-              {kind === "adult" ? "Adult draw year" : "Kids draw year"}
-              <input
-                className="mt-1 block w-28 rounded-lg border border-border bg-background px-3 py-2"
-                type="number"
-                min={2000}
-                max={9999}
-                value={year}
-                onChange={(e) => {
-                  setYear(Number(e.target.value));
-                  setPreview(null);
-                }}
-              />
-            </label>
-            <button
-              className={button}
-              disabled={busy}
-              onClick={() => void run(false)}
-            >
-              Preview {kind === "adult" ? "adult" : "kids’"} draw
-            </button>
-          </div>
+          <button
+            className={`${button} mt-3`}
+            disabled={busy}
+            onClick={() => void run(false)}
+          >
+            {saved
+              ? `Redraw ${kind === "adult" ? "adult" : "kids’"} draw`
+              : `Preview ${kind === "adult" ? "adult" : "kids’"} draw`}
+          </button>
           {preview && (
             <div className="mt-4 space-y-3">
-              <h4 className="font-semibold">Preview for {year}</h4>
+              <h4 className="font-semibold">
+                {saved ? "Replacement preview" : "Preview"} for {year}
+              </h4>
+              {saved && (
+                <p className="text-sm text-muted">
+                  Your saved assignments stay unchanged until you confirm a
+                  replacement.
+                </p>
+              )}
               {preview.map((a) => (
                 <p key={a.giverId} className="break-words text-sm">
                   {a.giverName} → {a.receiverName}
@@ -140,7 +165,9 @@ export default function ExchangeDraw({
                   disabled={busy}
                   onClick={() => void run(true)}
                 >
-                  Save {kind === "adult" ? "adult" : "kids’"} assignments
+                  {saved
+                    ? `Replace ${kind === "adult" ? "adult" : "kids’"} assignments`
+                    : `Save ${kind === "adult" ? "adult" : "kids’"} assignments`}
                 </button>
                 <button
                   className={button}

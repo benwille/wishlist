@@ -32,6 +32,8 @@ await build({
     kidsRules: "src/lib/exchange/kids-algorithm.ts",
     kidsQueries: "src/lib/exchange/kids.ts",
     groupPage: "src/app/exchange/[groupId]/page.tsx",
+    personalExchangePage: "src/app/exchange/page.tsx",
+    drawComponent: "src/components/ExchangeDraw.tsx",
     dashboard: "src/app/page.tsx",
     share: "src/app/share/[token]/page.tsx",
     publicClaim: "src/app/api/share/[token]/items/[id]/route.ts",
@@ -595,4 +597,39 @@ test("linked adult accounts cannot be deleted and disabled adult draws reject di
  await groupPerson({action:"settings",profileType:"adult",enabled:false});
  const {POST:adultRun}=require(join(output,"adultDraw.cjs"));
  assert.equal((await adultRun(new NextRequest('https://wishlist.test/api/exchange/groups/1/run',{method:'POST',headers:{Cookie:'session_id=session-1','Content-Type':'application/json'},body:JSON.stringify({year:2026,preview:true})}),{params:Promise.resolve({id:'1'})})).status,409);
+});
+
+
+test("Gift Exchange combines only your and linked kids' assignments under each year, even for admins",async t=>{
+ const {sqlite}=adminFixture(t);const {default:PersonalExchange}=require(join(output,"personalExchangePage.cjs"));
+ sqlite.exec(`
+ INSERT INTO exchange_groups(id,name,created_at) VALUES(2,'Historical Friends',CURRENT_TIMESTAMP);
+ INSERT INTO children(id,first_name,last_name) VALUES(11,'OwnChild','Test'),(12,'PeerTarget','Test'),(13,'OtherKid','Test'),(14,'OtherReceiver','Test');
+ INSERT INTO child_adults(child_id,adult_id) VALUES(11,1),(11,2),(13,3);
+ INSERT INTO child_assignments(group_id,giver_id,receiver_id,year) VALUES(1,11,12,2026),(2,11,14,2025),(1,13,14,2099);
+ INSERT INTO exchange_assignments(group_id,giver_id,receiver_id,year,created_at) VALUES(1,1,2,2024,CURRENT_TIMESTAMP),(1,2,1,2023,CURRENT_TIMESTAMP),(1,3,4,2098,CURRENT_TIMESTAMP);
+ `);
+ for(const actor of [1,2]){
+  globalThis.__wishlistTestCookies=new Map([["session_id",{value:`session-${actor}`}]]);
+  const html=renderPage(await PersonalExchange());
+  assert.match(html,/id="personal-year-2026"/);assert.match(html,/id="personal-year-2025"/);
+  assert.doesNotMatch(html,/personal-year-2099|personal-year-2098/);
+  assert.match(html,/OwnChild Test/);assert.doesNotMatch(html,/OtherKid Test/);
+  assert.ok(html.indexOf('id="personal-year-2026"')<html.indexOf('id="personal-year-2025"'));
+  const start=html.indexOf('id="personal-year-2026"'),end=html.indexOf('id="personal-year-2025"');const section=html.slice(start,end);
+  assert.match(section,/your-assignment-2026/);assert.match(section,/your-kids-2026/);assert.match(section,/PeerTarget Test/);assert.doesNotMatch(section,/Historical Friends|OtherReceiver Test/);
+  assert.match(html,/Historical Friends/);assert.match(html,/View all assignments/);
+  const all=renderPage(await GroupPage({params:Promise.resolve({groupId:"1"})}));assert.match(all,/OtherKid Test/);assert.match(all,/assignments-2099/);
+ }
+ globalThis.__wishlistTestCookies=new Map([["session_id",{value:"session-4"}]]);
+ const empty=renderPage(await PersonalExchange());assert.match(empty,/No assignments for you or your linked kids yet/);assert.doesNotMatch(empty,/OwnChild Test|OtherKid Test/);
+});
+
+
+test("saved draws show explicit status and Redraw instead of the normal preview action",()=>{
+ const {default:Draw}=require(join(output,"drawComponent.cjs"));const year=new Date().getFullYear();
+ const saved=renderPage(createElement(Draw,{groupId:1,kind:"adult",enabled:true,memberCount:3,savedYears:[year]}));
+ assert.match(saved,/Assignments saved for/);assert.match(saved,/View assignments/);assert.match(saved,/Redraw adult draw/);assert.doesNotMatch(saved,/Preview adult draw/);
+ const fresh=renderPage(createElement(Draw,{groupId:1,kind:"adult",enabled:true,memberCount:3,savedYears:[]}));assert.match(fresh,/Preview adult draw/);assert.doesNotMatch(fresh,/Assignments saved for/);
+ const disabled=renderPage(createElement(Draw,{groupId:1,kind:"child",enabled:false,memberCount:0,savedYears:[year]}));assert.match(disabled,/Assignments saved for/);assert.match(disabled,/View assignments/);assert.doesNotMatch(disabled,/Redraw kids/);
 });
