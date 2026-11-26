@@ -1,3 +1,8 @@
+import { readFileSync } from "node:fs";
+import {
+  parseWranglerOutput,
+  verifiedProfileRows,
+} from "./lib/person-verification.mjs";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
@@ -13,24 +18,14 @@ const output = execFileSync(
     "execute",
     "wishlist",
     mode,
-    "--file",
-    "scripts/verify-person-profiles.sql",
+    // Remote --file is an import and returns summary metadata, not SELECT rows.
+    // Use the query endpoint so every mapping check is actually verified.
+    `--command=${readFileSync(resolve(root, "scripts/verify-person-profiles.sql"), "utf8")}`,
     "--json",
   ],
   { cwd: root, encoding: "utf8", maxBuffer: 1024 * 1024 },
 );
-const responses = JSON.parse(output);
-const rows = responses.flatMap((response) => {
-  if (!response.success) throw new Error("Profile verification query failed");
-  return response.results;
-});
-const checks = rows.flatMap((row) =>
-  Object.entries(row).filter(([key]) => key.startsWith("missing_")),
-);
-if (checks.length !== 5 || checks.some(([, count]) => count !== 0))
-  throw new Error(
-    "Profile mappings are incomplete; do not publish the new Worker",
-  );
+const rows = verifiedProfileRows(parseWranglerOutput(output));
 console.log(
   JSON.stringify({ profileIntegrity: "passed", counts: rows }, null, 2),
 );
