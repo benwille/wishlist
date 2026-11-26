@@ -1,3 +1,4 @@
+import { groupIdsForAccount } from "@/lib/people";
 import { eq, inArray } from "drizzle-orm";
 import { alias } from "drizzle-orm/sqlite-core";
 import type { Database } from "@/lib/db";
@@ -5,29 +6,14 @@ import {
   children,
   childAdults,
   childAssignments,
-  childGroupMembers,
   exchangeGroups,
-  exchangeGroupMembers,
 } from "@/lib/db/schema";
 export async function accessibleGroups(
   db: Database,
   adultId: number,
   admin: boolean,
 ) {
-  if (admin)
-    return db
-      .select({ id: exchangeGroups.id, name: exchangeGroups.name })
-      .from(exchangeGroups);
-  const own = await db
-    .select({ id: exchangeGroupMembers.groupId })
-    .from(exchangeGroupMembers)
-    .where(eq(exchangeGroupMembers.userId, adultId));
-  const linked = await db
-    .select({ id: childGroupMembers.groupId })
-    .from(childGroupMembers)
-    .innerJoin(childAdults, eq(childAdults.childId, childGroupMembers.childId))
-    .where(eq(childAdults.adultId, adultId));
-  const ids = [...new Set([...own, ...linked].map((g) => g.id))];
+  const ids = await groupIdsForAccount(db, adultId, admin);
   return ids.length
     ? db
         .select({ id: exchangeGroups.id, name: exchangeGroups.name })

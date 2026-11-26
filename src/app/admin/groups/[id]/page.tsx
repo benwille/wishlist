@@ -1,96 +1,106 @@
+import { redirect } from "next/navigation";
+import { getUser } from "@/lib/auth/getUser";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
-import { eq, desc } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
-import { exchangeGroups, exchangeGroupMembers, exchangeExclusions, exchangeAssignments, users } from "@/lib/db/schema";
+import {
+  people,
+  children,
+  groupPeople,
+  exchangeGroups,
+  exchangeExclusions,
+  childExclusions,
+  exchangeAssignments,
+  childAssignments,
+} from "@/lib/db/schema";
 import RenameGroup from "./RenameGroup";
-import MemberManager from "./MemberManager";
-import ExclusionManager from "./ExclusionManager";
-import RunExchange from "./RunExchange";
-import AssignmentHistory from "./AssignmentHistory";
-
-export default async function GroupDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
+import GroupPeopleManager from "@/components/GroupPeopleManager";
+export default async function GroupPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const viewer = await getUser();
+  if (!viewer.isAdmin) redirect("/");
+  const groupId = Number((await params).id);
   const { env } = getCloudflareContext();
   const db = getDb(env.DB);
-
-  const [group] = await db.select().from(exchangeGroups).where(eq(exchangeGroups.id, Number(id))).limit(1);
+  const [group] = await db
+    .select()
+    .from(exchangeGroups)
+    .where(eq(exchangeGroups.id, groupId));
   if (!group) notFound();
-
-  const allUsers = await db.select({ id: users.id, firstName: users.firstName, lastName: users.lastName, active: users.active }).from(users).where(eq(users.active, 1)).orderBy(users.firstName);
-
+  const records = await db.select().from(people).orderBy(people.firstName),
+    kids = await db.select().from(children);
   const members = await db
-    .select({ userId: exchangeGroupMembers.userId, firstName: users.firstName, lastName: users.lastName })
-    .from(exchangeGroupMembers)
-    .innerJoin(users, eq(exchangeGroupMembers.userId, users.id))
-    .where(eq(exchangeGroupMembers.groupId, group.id));
-
-  const exclusions = await db
-    .select({
-      id: exchangeExclusions.id,
-      userId1: exchangeExclusions.userId1,
-      userId2: exchangeExclusions.userId2,
-    })
-    .from(exchangeExclusions)
-    .where(eq(exchangeExclusions.groupId, group.id));
-
-  const assignments = await db
-    .select({
-      year: exchangeAssignments.year,
-      giverFirstName: users.firstName,
-      giverLastName: users.lastName,
-      receiverId: exchangeAssignments.receiverId,
-    })
-    .from(exchangeAssignments)
-    .innerJoin(users, eq(exchangeAssignments.giverId, users.id))
-    .where(eq(exchangeAssignments.groupId, group.id))
-    .orderBy(desc(exchangeAssignments.year));
-
-  // Resolve receiver names
-  const userMap = new Map(allUsers.map((u) => [u.id, `${u.firstName} ${u.lastName}`]));
-  const assignmentsWithNames = assignments.map((a) => ({
-    ...a,
-    giverName: `${a.giverFirstName} ${a.giverLastName}`,
-    receiverName: userMap.get(a.receiverId) || "Unknown",
-  }));
-
-  const memberIds = new Set(members.map((m) => m.userId));
-
+    .select()
+    .from(groupPeople)
+    .where(eq(groupPeople.groupId, groupId));
+  const adultPairs = await db
+      .select()
+      .from(exchangeExclusions)
+      .where(eq(exchangeExclusions.groupId, groupId)),
+    kidPairs = await db
+      .select()
+      .from(childExclusions)
+      .where(eq(childExclusions.groupId, groupId));
+  const adultHistory = await db
+      .select()
+      .from(exchangeAssignments)
+      .where(eq(exchangeAssignments.groupId, groupId)),
+    kidHistory = await db
+      .select()
+      .from(childAssignments)
+      .where(eq(childAssignments.groupId, groupId));
+  const accountPerson = new Map(
+      records
+        .filter((p) => p.accountId !== null)
+        .map((p) => [p.accountId!, p.id]),
+    ),
+    childPerson = new Map(kids.map((c) => [c.id, c.personId!]));
+  const exclusions = [
+    ...adultPairs.map((e) => ({
+      personId1: accountPerson.get(e.userId1)!,
+      personId2: accountPerson.get(e.userId2)!,
+      profileType: "adult" as const,
+    })),
+    ...kidPairs.map((e) => ({
+      personId1: childPerson.get(e.childId1)!,
+      personId2: childPerson.get(e.childId2)!,
+      profileType: "child" as const,
+    })),
+  ];
+  const data = {
+    groupId,
+    records: records.map((p) => ({
+      id: p.id,
+      firstName: p.firstName,
+      lastName: p.lastName,
+      profileType: p.profileType,
+      active: p.active,
+    })),
+    memberIds: members.map((m) => m.personId),
+    exclusions,
+    adultEnabled: !!group.adultExchangeEnabled,
+    kidsEnabled: !!group.kidsExchangeEnabled,
+    adultYears: adultHistory.map((a) => a.year),
+    kidsYears: kidHistory.map((a) => a.year),
+  };
   return (
-    <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-8">
-      <RenameGroup groupId={group.id} currentName={group.name} /><Link href={`/admin/groups/${group.id}/kids`} className="mt-4 inline-block rounded-lg border border-border px-4 py-2 font-medium text-primary">Manage Kids Exchange</Link>
-      <p className="mt-1 text-sm text-muted">Manage members, exclusions, and run the exchange.</p>
-
-      <div className="mt-6 rounded-xl border border-border bg-surface p-6 shadow-sm">
-        <h2 className="text-lg font-semibold mb-4">Members ({members.length})</h2>
-        <MemberManager
-          groupId={group.id}
-          members={members}
-          allUsers={allUsers}
-          memberIds={[...memberIds]}
-        />
-      </div>
-
-      <div className="mt-6 rounded-xl border border-border bg-surface p-6 shadow-sm">
-        <h2 className="text-lg font-semibold mb-4">Exclusions</h2>
-        <p className="mb-3 text-sm text-muted">Pairs who shouldn&apos;t be assigned to each other (e.g. same household).</p>
-        <ExclusionManager
-          groupId={group.id}
-          exclusions={exclusions}
-          members={members}
-        />
-      </div>
-
-      <div className="mt-6 rounded-xl border border-border bg-surface p-6 shadow-sm">
-        <h2 className="text-lg font-semibold mb-4">Run Exchange</h2>
-        <RunExchange groupId={group.id} memberCount={members.length} />
-      </div>
-
-      <div className="mt-6 rounded-xl border border-border bg-surface p-6 shadow-sm">
-        <h2 className="text-lg font-semibold mb-4">Assignment History</h2>
-        <AssignmentHistory assignments={assignmentsWithNames} />
-      </div>
+    <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8">
+      <Link
+        href="/admin/groups"
+        className="mb-4 inline-block text-primary hover:underline"
+      >
+        Back to Groups
+      </Link>
+      <RenameGroup groupId={groupId} currentName={group.name} />
+      <p className="mt-2 text-muted">
+        Manage this group’s adults, kids, exclusions and independent draws.
+      </p>
+      <GroupPeopleManager key={JSON.stringify(data)} {...data} />
     </main>
   );
 }

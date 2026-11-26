@@ -59,6 +59,7 @@ export const claimHistory = sqliteTable("claim_history", {
 }, (table) => [index("idx_claim_history_item_time").on(table.itemId, table.createdAt)]);
 
 export const items = sqliteTable("items", {
+  personId: integer("person_id").references(() => people.id),
   id: integer("id").primaryKey({ autoIncrement: true }),
   userId: integer("user_id").notNull().references(() => users.id),
   name: text("name").notNull(),
@@ -76,6 +77,8 @@ export const items = sqliteTable("items", {
 ]);
 
 export const exchangeGroups = sqliteTable("exchange_groups", {
+  adultExchangeEnabled: integer("adult_exchange_enabled").notNull().default(1),
+  kidsExchangeEnabled: integer("kids_exchange_enabled").notNull().default(0),
   id: integer("id").primaryKey({ autoIncrement: true }),
   name: text("name").notNull(),
   createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
@@ -141,8 +144,30 @@ export const sessions = sqliteTable("sessions", {
   index("idx_sessions_user_id").on(table.userId),
 ]);
 
-// Children participate without receiving login accounts or wishlists.
+// Permanent person identity is separate from an optional login account.
+// The users/children rows below remain compatibility references for existing
+// claims, links and historical draws; profile data is synchronized by migration triggers.
+export const people = sqliteTable("people", {
+ id: integer("id").primaryKey({ autoIncrement: true }),
+ firstName: text("first_name").notNull(),
+ lastName: text("last_name").notNull(),
+ profileType: text("profile_type", { enum: ["adult", "child"] }).notNull(),
+ accountId: integer("account_id").unique().references(() => users.id, { onDelete: "set null" }),
+ active: integer("active").notNull().default(1),
+ createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
+}, t => [check("person_type", sql`${t.profileType} IN ('adult', 'child')`)]);
+export const personGuardians = sqliteTable("person_guardians", {
+ personId: integer("person_id").notNull().references(() => people.id),
+ adultPersonId: integer("adult_person_id").notNull().references(() => people.id),
+}, t => [primaryKey({ columns: [t.personId, t.adultPersonId] }), check("guardian_not_self", sql`${t.personId} <> ${t.adultPersonId}`)]);
+export const groupPeople = sqliteTable("group_people", {
+ groupId: integer("group_id").notNull().references(() => exchangeGroups.id, { onDelete: "cascade" }),
+ personId: integer("person_id").notNull().references(() => people.id),
+}, t => [primaryKey({ columns: [t.groupId, t.personId] })]);
+
+// Historical child-exchange IDs map to the shared person identity.
 export const children = sqliteTable("children", {
+ personId: integer("person_id").unique().references(() => people.id),
  id: integer("id").primaryKey({ autoIncrement: true }),
  firstName: text("first_name").notNull(), lastName: text("last_name").notNull(),
 });

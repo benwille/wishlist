@@ -177,6 +177,8 @@ export async function POST(
             ),
           );
     } else if (body.action === "preview" || body.action === "save") {
+      const [settings]=await db.select().from(exchangeGroups).where(eq(exchangeGroups.id,groupId));
+      if(!settings?.kidsExchangeEnabled)return NextResponse.json({error:"Kids exchange is disabled for this group"},{status:409});
       const year = body.year ?? 0;
       if (!Number.isInteger(year) || year < 2000 || year > 9999)
         throw new Error("Enter a valid year.");
@@ -243,6 +245,8 @@ export async function POST(
           ),
       ]);
     } else throw new Error("Unknown action.");
+    // Compatibility for old clients that explicitly create/enroll a child here.
+    if(body.action==="create"||body.action==="add")await db.update(exchangeGroups).set({kidsExchangeEnabled:1}).where(eq(exchangeGroups.id,groupId));
     return NextResponse.json({ ok: true });
   } catch (error) {
     return NextResponse.json(

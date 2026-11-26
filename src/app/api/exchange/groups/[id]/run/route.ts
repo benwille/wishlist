@@ -2,27 +2,59 @@ import { NextRequest, NextResponse } from "next/server";
 import { eq, and } from "drizzle-orm";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { getDb } from "@/lib/db";
-import { exchangeGroupMembers, exchangeExclusions, exchangeAssignments, users } from "@/lib/db/schema";
+import {
+  exchangeGroups,
+  exchangeGroupMembers,
+  exchangeExclusions,
+  exchangeAssignments,
+  users,
+} from "@/lib/db/schema";
 import { validateSession, getSessionCookieName } from "@/lib/auth/session";
-import { generateAssignments, validateAssignments, type Assignment } from "@/lib/exchange/algorithm";
+import {
+  generateAssignments,
+  validateAssignments,
+  type Assignment,
+} from "@/lib/exchange/algorithm";
 import { sendPushToUsers } from "@/lib/push/send";
 import { giverAssignmentCopy, receiverAssignmentCopy } from "@/lib/push/copy";
 
-export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
   const { id: groupIdStr } = await params;
   const groupId = Number(groupIdStr);
   const { env } = getCloudflareContext();
   const db = getDb(env.DB);
 
   const sessionId = request.cookies.get(getSessionCookieName())?.value;
-  if (!sessionId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!sessionId)
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const user = await validateSession(db, sessionId);
-  if (!user?.isAdmin) return NextResponse.json({ error: "Admin required" }, { status: 403 });
+  if (!user?.isAdmin)
+    return NextResponse.json({ error: "Admin required" }, { status: 403 });
 
-  const body = (await request.json()) as { year: number; preview: boolean; assignments?: Assignment[] };
+  const [group] = await db
+    .select()
+    .from(exchangeGroups)
+    .where(eq(exchangeGroups.id, groupId));
+  if (!group)
+    return NextResponse.json({ error: "Group not found" }, { status: 404 });
+  if (!group.adultExchangeEnabled)
+    return NextResponse.json(
+      { error: "Adult exchange is disabled for this group" },
+      { status: 409 },
+    );
+  const body = (await request.json()) as {
+    year: number;
+    preview: boolean;
+    assignments?: Assignment[];
+    replace?: boolean;
+  };
   const { year, preview } = body;
 
-  if (!year) return NextResponse.json({ error: "Year required" }, { status: 400 });
+  if (!year)
+    return NextResponse.json({ error: "Year required" }, { status: 400 });
 
   // Get members
   const members = await db
@@ -31,18 +63,28 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     .where(eq(exchangeGroupMembers.groupId, groupId));
 
   if (members.length < 2) {
-    return NextResponse.json({ error: "Need at least 2 members" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Need at least 2 members" },
+      { status: 400 },
+    );
   }
 
   // Get exclusions
   const exclusions = await db
-    .select({ userId1: exchangeExclusions.userId1, userId2: exchangeExclusions.userId2 })
+    .select({
+      userId1: exchangeExclusions.userId1,
+      userId2: exchangeExclusions.userId2,
+    })
     .from(exchangeExclusions)
     .where(eq(exchangeExclusions.groupId, groupId));
 
   // Get history
   const history = await db
-    .select({ giverId: exchangeAssignments.giverId, receiverId: exchangeAssignments.receiverId, year: exchangeAssignments.year })
+    .select({
+      giverId: exchangeAssignments.giverId,
+      receiverId: exchangeAssignments.receiverId,
+      year: exchangeAssignments.year,
+    })
     .from(exchangeAssignments)
     .where(eq(exchangeAssignments.groupId, groupId));
 
@@ -54,15 +96,32 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       assignments = generateAssignments(memberIds, exclusions, history, year);
     } else {
       if (!Array.isArray(body.assignments)) {
-        return NextResponse.json({ error: "Assignments required" }, { status: 400 });
+        return NextResponse.json(
+          { error: "Assignments required" },
+          { status: 400 },
+        );
       }
-      validateAssignments(body.assignments, memberIds, exclusions, history, year);
+      validateAssignments(
+        body.assignments,
+        memberIds,
+        exclusions,
+        history,
+        year,
+      );
       assignments = body.assignments;
     }
 
     // Get names for display
-    const allUsers = await db.select({ id: users.id, firstName: users.firstName, lastName: users.lastName }).from(users);
-    const nameMap = new Map(allUsers.map((u) => [u.id, `${u.firstName} ${u.lastName}`]));
+    const allUsers = await db
+      .select({
+        id: users.id,
+        firstName: users.firstName,
+        lastName: users.lastName,
+      })
+      .from(users);
+    const nameMap = new Map(
+      allUsers.map((u) => [u.id, `${u.firstName} ${u.lastName}`]),
+    );
 
     const namedAssignments = assignments.map((a) => ({
       giverId: a.giverId,
@@ -79,25 +138,38 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const existing = await db
       .select()
       .from(exchangeAssignments)
-      .where(and(eq(exchangeAssignments.groupId, groupId), eq(exchangeAssignments.year, year)))
+      .where(
+        and(
+          eq(exchangeAssignments.groupId, groupId),
+          eq(exchangeAssignments.year, year),
+        ),
+      )
       .limit(1);
 
-    if (existing.length > 0) {
-      // Delete existing and replace
-      await db.delete(exchangeAssignments).where(
-        and(eq(exchangeAssignments.groupId, groupId), eq(exchangeAssignments.year, year))
+    if (existing.length > 0 && body.replace !== true)
+      return NextResponse.json(
+        { error: "Confirm replacement of the saved adult draw" },
+        { status: 409 },
       );
-    }
-
-    // Save
-    await db.insert(exchangeAssignments).values(
-      assignments.map((a) => ({
-        groupId,
-        giverId: a.giverId,
-        receiverId: a.receiverId,
-        year,
-      }))
-    );
+    // Replacement commits atomically and never touches child assignments.
+    await db.batch([
+      db
+        .delete(exchangeAssignments)
+        .where(
+          and(
+            eq(exchangeAssignments.groupId, groupId),
+            eq(exchangeAssignments.year, year),
+          ),
+        ),
+      db.insert(exchangeAssignments).values(
+        assignments.map((a) => ({
+          groupId,
+          giverId: a.giverId,
+          receiverId: a.receiverId,
+          year,
+        })),
+      ),
+    ]);
 
     // Fire a push to each giver (#2) and each receiver (#3)
     for (const a of namedAssignments) {
@@ -119,7 +191,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     return NextResponse.json({ ok: true, assignments: namedAssignments });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Failed to generate assignments";
+    const message =
+      err instanceof Error ? err.message : "Failed to generate assignments";
     return NextResponse.json({ error: message }, { status: 422 });
   }
 }

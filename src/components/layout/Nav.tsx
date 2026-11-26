@@ -21,6 +21,7 @@ export default function Nav({ user }: { user: NavUser }) {
     { href: "/lists", label: "All Lists" },
     { href: "/my-list", label: "My List" },
     { href: "/exchange", label: "Gift Exchange" },
+    { href: "/people", label: "My Profiles" },
     { href: "/account", label: "Account" },
   ];
 

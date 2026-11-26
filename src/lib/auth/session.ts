@@ -1,5 +1,5 @@
 import { eq, and, gt } from "drizzle-orm";
-import { sessions, users } from "@/lib/db/schema";
+import { sessions, users, people } from "@/lib/db/schema";
 import type { Database } from "@/lib/db";
 
 const SESSION_COOKIE = "session_id";
@@ -7,6 +7,7 @@ const SESSION_MAX_AGE_DAYS = 30;
 
 export type SessionUser = {
   id: number;
+  personId: number;
   firstName: string;
   lastName: string;
   email: string | null;
@@ -19,7 +20,10 @@ export function getSessionCookieName() {
   return SESSION_COOKIE;
 }
 
-export async function createSession(db: Database, userId: number): Promise<{ sessionId: string; expires: Date }> {
+export async function createSession(
+  db: Database,
+  userId: number,
+): Promise<{ sessionId: string; expires: Date }> {
   const sessionId = crypto.randomUUID();
   const expires = new Date();
   expires.setDate(expires.getDate() + SESSION_MAX_AGE_DAYS);
@@ -33,12 +37,16 @@ export async function createSession(db: Database, userId: number): Promise<{ ses
   return { sessionId, expires };
 }
 
-export async function validateSession(db: Database, sessionId: string): Promise<SessionUser | null> {
+export async function validateSession(
+  db: Database,
+  sessionId: string,
+): Promise<SessionUser | null> {
   const now = new Date().toISOString();
 
   const result = await db
     .select({
       userId: users.id,
+      personId: people.id,
       firstName: users.firstName,
       lastName: users.lastName,
       email: users.email,
@@ -47,12 +55,15 @@ export async function validateSession(db: Database, sessionId: string): Promise<
     })
     .from(sessions)
     .innerJoin(users, eq(sessions.userId, users.id))
+    .innerJoin(people, eq(people.accountId, users.id))
     .where(
       and(
         eq(sessions.id, sessionId),
         gt(sessions.expiresAt, now),
-        eq(users.active, 1)
-      )
+        eq(users.active, 1),
+        eq(people.profileType, "adult"),
+        eq(people.active, 1),
+      ),
     )
     .limit(1);
 
@@ -61,6 +72,7 @@ export async function validateSession(db: Database, sessionId: string): Promise<
   const row = result[0];
   return {
     id: row.userId,
+    personId: row.personId,
     firstName: row.firstName,
     lastName: row.lastName,
     email: row.email,
@@ -69,7 +81,10 @@ export async function validateSession(db: Database, sessionId: string): Promise<
   };
 }
 
-export async function destroySession(db: Database, sessionId: string): Promise<void> {
+export async function destroySession(
+  db: Database,
+  sessionId: string,
+): Promise<void> {
   await db.delete(sessions).where(eq(sessions.id, sessionId));
 }
 

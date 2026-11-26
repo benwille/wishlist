@@ -1,13 +1,16 @@
+import {getUser} from "@/lib/auth/getUser";
+import {redirect} from "next/navigation";
 import Link from "next/link";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { eq, sql, count } from "drizzle-orm";
 import { getDb } from "@/lib/db";
-import { exchangeGroups, exchangeGroupMembers } from "@/lib/db/schema";
+import { exchangeGroups, groupPeople } from "@/lib/db/schema";
 import CreateGroupForm from "./CreateGroupForm";
 
 export const metadata = { title: "Exchange Groups" };
 
 export default async function GroupsPage() {
+  const viewer=await getUser();if(!viewer.isAdmin)redirect("/");
   const { env } = getCloudflareContext();
   const db = getDb(env.DB);
 
@@ -20,9 +23,9 @@ export default async function GroupsPage() {
     .orderBy(exchangeGroups.name);
 
   const memberCounts = await db
-    .select({ groupId: exchangeGroupMembers.groupId, count: count() })
-    .from(exchangeGroupMembers)
-    .groupBy(exchangeGroupMembers.groupId);
+    .select({ groupId: groupPeople.groupId, count: count() })
+    .from(groupPeople)
+    .groupBy(groupPeople.groupId);
 
   const countMap = new Map(memberCounts.map((r) => [r.groupId, r.count]));
 

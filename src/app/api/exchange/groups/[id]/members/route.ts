@@ -21,6 +21,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (!body.userId) return NextResponse.json({ error: "userId required" }, { status: 400 });
 
   const groupId = Number(id);
+  const [candidate]=await db.select().from(users).where(and(eq(users.id,body.userId),eq(users.active,1)));
+  if(!candidate)return NextResponse.json({error:"Choose an active adult account"},{status:400});
 
   // Check whether the user is already a member — skip notification if so
   const [alreadyMember] = await db

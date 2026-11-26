@@ -9,10 +9,10 @@ export default function AdminPage() {
       <p className="mt-1 text-sm text-muted">Manage users, groups, and exchanges.</p>
 
       <div className="mt-6 grid gap-4 sm:grid-cols-2">
-        <Link href="/admin/users"
+        <Link href="/admin/people"
           className="rounded-xl border border-border bg-surface p-5 shadow-sm hover:border-primary hover:shadow-md transition-all">
-          <h2 className="font-semibold">Users</h2>
-          <p className="mt-1 text-sm text-muted">Create, edit, and deactivate users</p>
+          <h2 className="font-semibold">People</h2>
+          <p className="mt-1 text-sm text-muted">Manage adult and child profiles and linked adults</p>
         </Link>
         <Link href="/admin/groups"
           className="rounded-xl border border-border bg-surface p-5 shadow-sm hover:border-primary hover:shadow-md transition-all">

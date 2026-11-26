@@ -22,7 +22,7 @@ export function generateAssignments(
 
   const recentHistory = new Set<string>();
   for (const { giverId, receiverId, year } of history) {
-    if (year >= currentYear - 2) {
+    if (year >= currentYear - 2 && year < currentYear) {
       recentHistory.add(`${giverId}-${receiverId}`);
     }
   }
@@ -88,7 +88,7 @@ export function validateAssignments(
   }
 
   for (const { giverId, receiverId, year } of history) {
-    if (year >= currentYear - 2) {
+    if (year >= currentYear - 2 && year < currentYear) {
       recentHistory.add(`${giverId}-${receiverId}`);
     }
   }

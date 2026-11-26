@@ -7,6 +7,7 @@ import {
   items,
   sessions,
   magicLinks,
+  childAdults,
   exchangeGroupMembers,
   exchangeExclusions,
   exchangeAssignments,
@@ -14,15 +15,20 @@ import {
 } from "@/lib/db/schema";
 import { validateSession, getSessionCookieName } from "@/lib/auth/session";
 
-export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
   const { id } = await params;
   const { env } = getCloudflareContext();
   const db = getDb(env.DB);
 
   const sessionId = request.cookies.get(getSessionCookieName())?.value;
-  if (!sessionId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!sessionId)
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const user = await validateSession(db, sessionId);
-  if (!user?.isAdmin) return NextResponse.json({ error: "Admin required" }, { status: 403 });
+  if (!user?.isAdmin)
+    return NextResponse.json({ error: "Admin required" }, { status: 403 });
 
   const body = (await request.json()) as {
     firstName?: string;
@@ -32,27 +38,56 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     active?: number;
   };
 
-  const updates: Record<string, unknown> = { updatedAt: new Date().toISOString() };
+  const updates: Record<string, unknown> = {
+    updatedAt: new Date().toISOString(),
+  };
   if (body.firstName !== undefined) updates.firstName = body.firstName.trim();
   if (body.lastName !== undefined) updates.lastName = body.lastName.trim();
-  if (body.email !== undefined) updates.email = body.email?.trim()?.toLowerCase() || null;
+  if (body.email !== undefined)
+    updates.email = body.email?.trim()?.toLowerCase() || null;
   if (body.isAdmin !== undefined) updates.isAdmin = body.isAdmin ? 1 : 0;
   if (body.active !== undefined) updates.active = body.active;
 
-  await db.update(users).set(updates).where(eq(users.id, Number(id)));
+  await db
+    .update(users)
+    .set(updates)
+    .where(eq(users.id, Number(id)));
 
   return NextResponse.json({ ok: true });
 }
 
-async function checkDeleteEligibility(db: ReturnType<typeof getDb>, userId: number) {
+async function checkDeleteEligibility(
+  db: ReturnType<typeof getDb>,
+  userId: number,
+) {
+  const linkedChildren = await db
+    .select()
+    .from(childAdults)
+    .where(eq(childAdults.adultId, userId))
+    .limit(1);
+  if (linkedChildren.length)
+    return {
+      eligible: false,
+      reason:
+        "This adult manages linked children. Reassign their adult links before deleting the account.",
+    };
   const assignments = await db
     .select({ id: exchangeAssignments.id })
     .from(exchangeAssignments)
-    .where(or(eq(exchangeAssignments.giverId, userId), eq(exchangeAssignments.receiverId, userId)))
+    .where(
+      or(
+        eq(exchangeAssignments.giverId, userId),
+        eq(exchangeAssignments.receiverId, userId),
+      ),
+    )
     .limit(1);
 
   if (assignments.length > 0) {
-    return { eligible: false, reason: "This user has exchange history and can't be deleted. Deactivate instead." };
+    return {
+      eligible: false,
+      reason:
+        "This user has exchange history and can't be deleted. Deactivate instead.",
+    };
   }
 
   const claims = await db
@@ -62,25 +97,37 @@ async function checkDeleteEligibility(db: ReturnType<typeof getDb>, userId: numb
     .limit(1);
 
   if (claims.length > 0) {
-    return { eligible: false, reason: "This user has claimed items on other lists and can't be deleted. Deactivate instead." };
+    return {
+      eligible: false,
+      reason:
+        "This user has claimed items on other lists and can't be deleted. Deactivate instead.",
+    };
   }
 
   return { eligible: true };
 }
 
-export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
   const { id } = await params;
   const userId = Number(id);
   const { env } = getCloudflareContext();
   const db = getDb(env.DB);
 
   const sessionId = request.cookies.get(getSessionCookieName())?.value;
-  if (!sessionId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!sessionId)
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const admin = await validateSession(db, sessionId);
-  if (!admin?.isAdmin) return NextResponse.json({ error: "Admin required" }, { status: 403 });
+  if (!admin?.isAdmin)
+    return NextResponse.json({ error: "Admin required" }, { status: 403 });
 
   if (admin.id === userId) {
-    return NextResponse.json({ error: "Cannot delete your own account" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Cannot delete your own account" },
+      { status: 400 },
+    );
   }
 
   const check = checkDeleteEligibility(db, userId);
@@ -89,7 +136,10 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   if (request.nextUrl.searchParams.get("check") === "1") {
     const result = await check;
     if (!result.eligible) {
-      return NextResponse.json({ eligible: false, reason: result.reason }, { status: 409 });
+      return NextResponse.json(
+        { eligible: false, reason: result.reason },
+        { status: 409 },
+      );
     }
     return NextResponse.json({ eligible: true });
   }
@@ -100,13 +150,24 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     return NextResponse.json({ error: result.reason }, { status: 409 });
   }
 
-  await db.delete(sessions).where(eq(sessions.userId, userId));
-  await db.delete(magicLinks).where(eq(magicLinks.userId, userId));
-  await db.delete(pushSubscriptions).where(eq(pushSubscriptions.userId, userId));
-  await db.delete(items).where(eq(items.userId, userId));
-  await db.delete(exchangeGroupMembers).where(eq(exchangeGroupMembers.userId, userId));
-  await db.delete(exchangeExclusions).where(or(eq(exchangeExclusions.userId1, userId), eq(exchangeExclusions.userId2, userId)));
-  await db.delete(users).where(eq(users.id, userId));
+  await db.batch([
+    db.delete(sessions).where(eq(sessions.userId, userId)),
+    db.delete(magicLinks).where(eq(magicLinks.userId, userId)),
+    db.delete(pushSubscriptions).where(eq(pushSubscriptions.userId, userId)),
+    db.delete(items).where(eq(items.userId, userId)),
+    db
+      .delete(exchangeGroupMembers)
+      .where(eq(exchangeGroupMembers.userId, userId)),
+    db
+      .delete(exchangeExclusions)
+      .where(
+        or(
+          eq(exchangeExclusions.userId1, userId),
+          eq(exchangeExclusions.userId2, userId),
+        ),
+      ),
+    db.delete(users).where(eq(users.id, userId)),
+  ]);
 
   return NextResponse.json({ ok: true });
 }

@@ -21,6 +21,13 @@ await build({
   entryPoints: {
     claim: "src/app/api/items/[id]/claim/route.ts",
     kids: "src/app/api/exchange/groups/[id]/kids/route.ts",
+    peopleApi: "src/app/api/people/route.ts",
+    groupPeopleApi: "src/app/api/exchange/groups/[id]/people/route.ts",
+    profilesPage: "src/app/people/page.tsx",
+    adminPeoplePage: "src/app/admin/people/page.tsx",
+    groupAdminPage: "src/app/admin/groups/[id]/page.tsx",
+    authSession: "src/lib/auth/session.ts",
+    accountApi: "src/app/api/users/[id]/route.ts",
     adultDraw: "src/app/api/exchange/groups/[id]/run/route.ts",
     kidsRules: "src/lib/exchange/kids-algorithm.ts",
     kidsQueries: "src/lib/exchange/kids.ts",
@@ -456,7 +463,7 @@ test("adult and kids draws cannot overwrite each other, including replacements",
  const {sqlite} = adminFixture(t);
  const {POST: adultDraw} = require(join(output, "adultDraw.cjs"));
  const adults = [{giverId:1,receiverId:2},{giverId:2,receiverId:3},{giverId:3,receiverId:1}];
- const drawAdults = assignments => adultDraw(new NextRequest("https://wishlist.test/api/exchange/groups/1/run", {method:"POST",headers:{"Content-Type":"application/json",Cookie:"session_id=session-1"},body:JSON.stringify({year:2026,preview:false,assignments})}), {params:Promise.resolve({id:"1"})});
+ const drawAdults = assignments => adultDraw(new NextRequest("https://wishlist.test/api/exchange/groups/1/run", {method:"POST",headers:{"Content-Type":"application/json",Cookie:"session_id=session-1"},body:JSON.stringify({year:2026,preview:false,assignments,replace:true})}), {params:Promise.resolve({id:"1"})});
  assert.equal((await drawAdults(adults)).status,200);
  const adultBefore = sqlite.prepare("SELECT * FROM exchange_assignments ORDER BY giver_id").all();
  await addChild([1],"First"); await addChild([2],"Second");
@@ -488,4 +495,104 @@ test("group assignment years include child-only years and separate adults/kids w
   if(year===2026){assert.match(section,/Owner Test/);assert.doesNotMatch(section,/EarlierKid|LaterKid/);}
   else {assert.match(section,/EarlierKid Test|LaterKid Test/);assert.doesNotMatch(section,/Owner Test/);}
  }
+});
+
+
+const peopleApi=require(join(output,"peopleApi.cjs"));
+const {POST:groupPeopleApi}=require(join(output,"groupPeopleApi.cjs"));
+function peopleRequest(body,userId=1,method="POST") {
+ const request=new NextRequest("https://wishlist.test/api/people",{method,headers:{"Content-Type":"application/json",...(userId?{Cookie:`session_id=session-${userId}`}:{})},...(method==="GET"?{}:{body:JSON.stringify(body)})});return peopleApi[method](request);
+}
+function groupPerson(body,userId=1,id="1") {return groupPeopleApi(new NextRequest(`https://wishlist.test/api/exchange/groups/${id}/people`,{method:"POST",headers:{"Content-Type":"application/json",...(userId?{Cookie:`session_id=session-${userId}`}:{})},body:JSON.stringify(body)}),{params:Promise.resolve({id})});}
+test("populated migration preserves colliding adult/child identities, links, claims and draws",t=>{
+ const sqlite=new DatabaseSync(":memory:");t.after(()=>sqlite.close());for(const migration of migrations.slice(0,-1))sqlite.exec(migration);
+ sqlite.exec(`
+ INSERT INTO users(id,first_name,last_name,email,password_hash,created_at,updated_at) VALUES (1,'Existing','Adult','adult@example.invalid','saved-hash',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP),(7,'Other','Adult',NULL,NULL,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP);
+ INSERT INTO children(id,first_name,last_name) VALUES(1,'Existing','Child'),(7,'Other','Child');
+ INSERT INTO exchange_groups(id,name,created_at) VALUES(1,'Family',CURRENT_TIMESTAMP),(2,'Friends',CURRENT_TIMESTAMP);
+ INSERT INTO exchange_group_members(group_id,user_id) VALUES(1,1),(1,7);
+ INSERT INTO child_group_members(group_id,child_id) VALUES(1,1),(2,1),(1,7);
+ INSERT INTO child_adults(child_id,adult_id) VALUES(1,1),(1,7),(7,7);
+ INSERT INTO exchange_assignments(group_id,giver_id,receiver_id,year,created_at) VALUES(1,1,7,2026,CURRENT_TIMESTAMP),(1,7,1,2026,CURRENT_TIMESTAMP);
+ INSERT INTO child_assignments(group_id,giver_id,receiver_id,year) VALUES(1,1,7,2026),(1,7,1,2026);
+ INSERT INTO exchange_exclusions(group_id,user_id_1,user_id_2) VALUES(2,1,7);
+ INSERT INTO child_exclusions(group_id,child_id_1,child_id_2) VALUES(2,1,7);
+ INSERT INTO items(id,user_id,name,claimed_by,purchased,year_added,created_at) VALUES(1,1,'Existing claim',7,1,2026,CURRENT_TIMESTAMP);
+ `);
+ const adultDraws=sqlite.prepare("SELECT * FROM exchange_assignments").all(),childDraws=sqlite.prepare("SELECT * FROM child_assignments").all(),history=sqlite.prepare("SELECT * FROM claim_history").all();
+ sqlite.exec(migrations.at(-1));
+ assert.deepEqual(sqlite.prepare("SELECT * FROM exchange_assignments").all(),adultDraws);assert.deepEqual(sqlite.prepare("SELECT * FROM child_assignments").all(),childDraws);assert.deepEqual(sqlite.prepare("SELECT * FROM claim_history").all(),history);
+ assert.equal(sqlite.prepare("SELECT count(*) n FROM people").get().n,4);assert.equal(sqlite.prepare("SELECT person_id FROM children WHERE id=1").get().person_id,8);assert.equal(sqlite.prepare("SELECT person_id FROM children WHERE id=7").get().person_id,14);
+ assert.equal(sqlite.prepare("SELECT count(*) n FROM person_guardians").get().n,3);assert.equal(sqlite.prepare("SELECT count(*) n FROM group_people").get().n,5);assert.equal(sqlite.prepare("SELECT count(*) n FROM group_people WHERE person_id=8").get().n,2);
+ assert.equal(sqlite.prepare("SELECT password_hash FROM users WHERE id=1").get().password_hash,'saved-hash');const gift=sqlite.prepare("SELECT * FROM items WHERE id=1").get();assert.equal(gift.person_id,1);assert.equal(gift.claimed_by,7);assert.equal(gift.purchased,1);assert.equal(sqlite.prepare("PRAGMA foreign_key_check").all().length,0);
+});
+test("one Child person is created without account or group and is reused across exchanges",async t=>{
+ const {sqlite}=adminFixture(t);
+ const created=await peopleRequest({action:"create",profileType:"child",firstName:"Reusable",lastName:"Child",guardianIds:[1,2,3,4]});assert.equal(created.status,201,JSON.stringify(await created.clone().json()));const {id}=await created.json();
+ assert.equal(sqlite.prepare("SELECT count(*) n FROM users").get().n,4);assert.equal(sqlite.prepare("SELECT count(*) n FROM child_group_members").get().n,0);assert.equal(sqlite.prepare("SELECT count(*) n FROM person_guardians WHERE person_id=?").get(id).n,4);
+ sqlite.exec("INSERT INTO exchange_groups(id,name,created_at) VALUES(2,'Friends',CURRENT_TIMESTAMP)");
+ for(const group of ["1","2"])assert.equal((await groupPerson({action:"add",personId:id},1,group)).status,200);
+ assert.equal(sqlite.prepare("SELECT count(*) n FROM people WHERE profile_type='child'").get().n,1);assert.equal(sqlite.prepare("SELECT count(*) n FROM group_people WHERE person_id=?").get(id).n,2);
+ assert.equal((await peopleRequest({action:"edit",id,firstName:"Renamed",lastName:"Child",profileType:"child",guardianIds:[1,4]})).status,200);assert.equal(sqlite.prepare("SELECT first_name FROM children WHERE person_id=?").get(id).first_name,'Renamed');assert.equal(sqlite.prepare("SELECT count(*) n FROM child_adults").get().n,2);
+ const adult=await peopleRequest({action:"create",profileType:"adult",firstName:"New",lastName:"Adult"});assert.equal(adult.status,201);const adultId=(await adult.json()).id;assert.notEqual(adultId,5);assert.equal(sqlite.prepare("SELECT account_id FROM people WHERE id=?").get(adultId).account_id,5);
+ sqlite.exec("INSERT INTO sessions(id,user_id,expires_at,created_at) VALUES('session-5',5,'2999-01-01',CURRENT_TIMESTAMP)");
+ const freshActor=await(await peopleRequest(null,5,"GET")).json();assert.deepEqual(freshActor.people.map(p=>p.id),[adultId]);assert.ok(!freshActor.people.some(p=>p.id===id));
+});
+test("ordinary parents cannot enumerate adults, attach guardians or edit a co-member child",async t=>{
+ const {sqlite}=adminFixture(t);const id=(await (await peopleRequest({action:"create",profileType:"child",firstName:"Managed",lastName:"Child",guardianIds:[4]})).json()).id;
+ assert.equal((await peopleRequest({action:"create",profileType:"child",firstName:"No",lastName:"Permission",guardianIds:[2]},2)).status,403);
+ const parent=await (await peopleRequest(null,4,"GET")).json();assert.deepEqual(parent.adults,[]);assert.deepEqual(parent.people.map(p=>p.firstName).sort(),['Managed','Outsider']);assert.ok(parent.people.every(p=>p.guardianIds===undefined&&p.accountId===undefined));
+ assert.equal((await groupPerson({action:"add",personId:id})).status,200);
+ const peer=await (await peopleRequest(null,2,"GET")).json();assert.ok(!peer.people.some(p=>p.id===id));
+ assert.equal((await peopleRequest({action:"edit",id,firstName:"Intruder",lastName:"Child"},2)).status,403);
+ assert.equal((await peopleRequest({action:"edit",id,firstName:"ParentEdit",lastName:"Child"},4)).status,200);
+ assert.equal((await peopleRequest({action:"edit",id,firstName:"Hijack",lastName:"Child",guardianIds:[2]},4)).status,403);
+ assert.equal(sqlite.prepare("SELECT first_name FROM people WHERE id=?").get(id).first_name,'ParentEdit');
+ assert.equal((await peopleRequest({action:"edit",id,profileType:"child",firstName:"ParentEdit",lastName:"Child",guardianIds:[1]})).status,200);
+ assert.equal((await peopleRequest({action:"edit",id,firstName:"Revoked",lastName:"Child"},4)).status,403);
+ assert.equal((await peopleRequest(null,null,"GET")).status,401);
+});
+test("exchange settings are server enforced and exclusions stay within the selected group/type",async t=>{
+ const {sqlite}=adminFixture(t);sqlite.exec("INSERT INTO exchange_groups(id,name,created_at) VALUES(2,'Friends',CURRENT_TIMESTAMP)");
+ const ids=[];for(const firstName of ['One','Two'])ids.push((await (await peopleRequest({action:"create",profileType:"child",firstName,lastName:"Child",guardianIds:[1]})).json()).id);
+ for(const id of ids)assert.equal((await groupPerson({action:"add",personId:id})).status,200);
+ assert.equal((await groupPerson({action:"exclude",personId1:ids[0],personId2:ids[1]})).status,200);
+ assert.equal((await groupPerson({action:"exclude",personId1:ids[0],personId2:ids[1]},1,"2")).status,400);
+ assert.equal((await groupPerson({action:"exclude",personId1:1,personId2:ids[0]})).status,400);
+ assert.equal((await groupPerson({action:"settings",profileType:"child",enabled:true},2)).status,403);
+ assert.equal((await kidAct({action:"preview",year:2026})).status,409);
+ assert.equal((await groupPerson({action:"settings",profileType:"child",enabled:true})).status,200);
+ assert.equal((await groupPerson({action:"include",personId1:ids[0],personId2:ids[1]})).status,200);
+ assert.equal((await kidAct({action:"preview",year:2026})).status,200);
+ assert.equal((await groupPerson({action:"settings",profileType:"child",enabled:false})).status,200);
+ assert.equal((await kidAct({action:"save",year:2026,assignments:[]})).status,409);
+ assert.equal(sqlite.prepare("SELECT count(*) n FROM child_group_members").get().n,2);
+});
+
+
+test("inactive migrated guardian links survive a profile edit without allowing new inactive guardians",async t=>{
+ const {sqlite}=adminFixture(t);const id=(await(await peopleRequest({action:"create",profileType:"child",firstName:"Existing",lastName:"Child",guardianIds:[1,4]})).json()).id;
+ sqlite.exec("UPDATE users SET active=0 WHERE id IN(3,4)");
+ assert.equal((await peopleRequest({action:"edit",id,firstName:"StillLinked",lastName:"Child",guardianIds:[1,4]})).status,200);
+ assert.equal(sqlite.prepare("SELECT count(*) n FROM person_guardians WHERE person_id=?").get(id).n,2);
+ assert.equal((await peopleRequest({action:"edit",id,firstName:"NoNewLink",lastName:"Child",guardianIds:[1,3,4]})).status,400);
+ assert.equal(sqlite.prepare("SELECT first_name FROM people WHERE id=?").get(id).first_name,'StillLinked');
+});
+test("child profiles have no login and existing type changes require a dedicated future conversion",async t=>{
+ const {sqlite,binding}=adminFixture(t);
+ const {validateSession}=require(join(output,"authSession.cjs"));
+ const id=(await(await peopleRequest({action:"create",profileType:"child",firstName:"Keep",lastName:"Identity",guardianIds:[1]})).json()).id;
+ assert.equal((await peopleRequest({action:"edit",id,profileType:"adult",firstName:"Keep",lastName:"Identity"})).status,400);
+ assert.equal(sqlite.prepare("SELECT profile_type FROM people WHERE id=?").get(id).profile_type,'child');
+ assert.equal(sqlite.prepare("SELECT account_id FROM people WHERE id=?").get(id).account_id,null);
+ sqlite.exec("UPDATE people SET profile_type='child' WHERE account_id=4");assert.equal(await validateSession((await import('drizzle-orm/d1')).drizzle(binding), 'session-4'),null);
+});
+test("linked adult accounts cannot be deleted and disabled adult draws reject direct requests",async t=>{
+ const {sqlite}=adminFixture(t);await peopleRequest({action:"create",profileType:"child",firstName:"Protected",lastName:"Child",guardianIds:[4]});
+ assert.throws(()=>sqlite.prepare("DELETE FROM users WHERE id=4").run(),/linked children/);
+ const {DELETE:deleteAccount}=require(join(output,"accountApi.cjs"));
+ const response=await deleteAccount(new NextRequest('https://wishlist.test/api/users/4',{method:'DELETE',headers:{Cookie:'session_id=session-1'}}),{params:Promise.resolve({id:'4'})});assert.equal(response.status,409);assert.ok(sqlite.prepare("SELECT id FROM users WHERE id=4").get());
+ await groupPerson({action:"settings",profileType:"adult",enabled:false});
+ const {POST:adultRun}=require(join(output,"adultDraw.cjs"));
+ assert.equal((await adultRun(new NextRequest('https://wishlist.test/api/exchange/groups/1/run',{method:'POST',headers:{Cookie:'session_id=session-1','Content-Type':'application/json'},body:JSON.stringify({year:2026,preview:true})}),{params:Promise.resolve({id:'1'})})).status,409);
 });
