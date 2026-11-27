@@ -63,17 +63,67 @@ try {
     await parentPage.getByText(names[0] + " Test", { exact: true }).count(),
     0,
   );
+  const childName = `LinkedChild${suffix}`;
+  const childResponse = await admin.request.post(origin + "/api/people", {
+    data: {
+      action: "create",
+      profileType: "child",
+      firstName: childName,
+      lastName: "Test",
+      guardianIds: [parentProfile.id],
+    },
+  });
+  assert.equal(childResponse.status(), 201);
+  const childId = (await childResponse.json()).id;
   await page.goto(origin + "/admin/groups/9000");
+  const kidsSection = page.getByRole("region", {
+    name: "Kids members",
+    exact: true,
+  });
+  assert.equal(
+    await kidsSection
+      .getByLabel("Add child member", { exact: true })
+      .locator(`option[value="${childId}"]`)
+      .count(),
+    1,
+  );
+  assert.equal(
+    await page
+      .getByLabel("Add adult member", { exact: true })
+      .locator(`option[value="${childId}"]`)
+      .count(),
+    0,
+  );
+  assert.equal(
+    await kidsSection
+      .getByRole("checkbox", {
+        name: "In the exchange: " + childName + " Test",
+        exact: true,
+      })
+      .count(),
+    0,
+  );
+  await kidsSection
+    .getByLabel("Add child member", { exact: true })
+    .selectOption(String(childId));
+  await kidsSection
+    .getByRole("button", { name: "Add child", exact: true })
+    .click();
+  const childCheckbox = kidsSection.getByRole("checkbox", {
+    name: "In the exchange: " + childName + " Test",
+    exact: true,
+  });
+  await childCheckbox.waitFor();
+  assert.equal(await childCheckbox.isChecked(), false);
+
   const section = page.getByRole("region", {
-    name: "Group members",
+    name: "Adult members",
     exact: true,
   });
   await section
-    .getByLabel("Add group member", { exact: true })
+    .getByLabel("Add adult member", { exact: true })
     .selectOption(String(member.id));
-  await section
-    .getByRole("button", { name: "Add member", exact: true })
-    .click();
+  await section.getByRole("button", { name: "Add adult", exact: true }).click();
   const card = section
     .getByRole("listitem")
     .filter({ hasText: names[0] + " Test" });
@@ -94,24 +144,32 @@ try {
   await page.reload();
   assert.equal(await participation.isChecked(), false);
   assert.equal(await card.count(), 1);
-  const mobileColumns = await section
-    .getByRole("list", { name: "Member roster" })
-    .evaluate(
-      (el) => getComputedStyle(el).gridTemplateColumns.split(" ").length,
+  for (const [width, expectedColumns] of [
+    [320, 1],
+    [390, 1],
+    [479, 1],
+    [480, 2],
+    [540, 2],
+    [640, 2],
+    [768, 2],
+    [1100, 2],
+  ]) {
+    await page.setViewportSize({ width, height: 900 });
+    for (const listName of ["Adult roster", "Kids roster"]) {
+      const columns = await page
+        .getByRole("list", { name: listName, exact: true })
+        .evaluate(
+          (el) => getComputedStyle(el).gridTemplateColumns.split(" ").length,
+        );
+      assert.equal(columns, expectedColumns, listName + " at " + width);
+    }
+    assert.ok(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+      "no overflow at " + width,
     );
-  assert.equal(mobileColumns, 1);
-  await page.setViewportSize({ width: 1100, height: 900 });
-  const desktopColumns = await section
-    .getByRole("list", { name: "Member roster" })
-    .evaluate(
-      (el) => getComputedStyle(el).gridTemplateColumns.split(" ").length,
-    );
-  assert.equal(desktopColumns, 2);
-  assert.ok(
-    await page.evaluate(
-      () => document.documentElement.scrollWidth <= innerWidth,
-    ),
-  );
+  }
   await page.screenshot({
     path: "/tmp/wishlist-browser-feedback-check/unified-roster-desktop.png",
     fullPage: true,
@@ -126,6 +184,9 @@ try {
     path: "/tmp/wishlist-browser-feedback-check/unified-roster-mobile.png",
     fullPage: true,
   });
+  await page.setViewportSize({ width: 540, height: 900 });
+  await page.getByRole("region", { name: "Kids members", exact: true }).getByRole("heading", { name: "Kids", exact: true }).scrollIntoViewIfNeeded();
+  await page.screenshot({ path: "/tmp/wishlist-browser-feedback-check/group-roster-duo-portrait.png" });
   await parentPage.reload();
   await parentPage.getByRole("link", { name: new RegExp(names[0]) }).click();
   await parentPage.waitForURL(origin + "/lists/" + member.accountId);
@@ -185,7 +246,7 @@ try {
     0,
   );
   console.log(
-    "PASS: responsive one/two-column roster, checkbox persistence, reciprocal list access, family privacy, admin-only changes and removal revocation",
+    "PASS: separate adult/kids rosters, linked child choice without automatic enrollment, two columns from 480px, checkbox persistence, reciprocal list access, family privacy, admin-only changes and removal revocation",
   );
 } finally {
   await browser.close();

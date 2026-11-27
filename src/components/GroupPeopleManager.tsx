@@ -42,7 +42,10 @@ export default function GroupPeopleManager({
   kidsYears: number[];
 }) {
   const router = useRouter();
-  const [selectedPerson, setSelectedPerson] = useState("");
+  const [selectedPeople, setSelectedPeople] = useState({
+    adult: "",
+    child: "",
+  });
   const [participatingIds, setParticipatingIds] = useState(memberIds);
   const [refreshing, startRefresh] = useTransition();
   useEffect(() => setParticipatingIds(memberIds), [memberIds]);
@@ -142,131 +145,174 @@ export default function GroupPeopleManager({
           Unchecking a member keeps their family access. Saved draws are
           unchanged.
         </p>
-        <div className="mt-4 flex flex-wrap gap-3 rounded-xl border border-border bg-surface p-4">
-          <select
-            className={`${select} flex-1 basis-48`}
-            aria-label="Add group member"
-            value={selectedPerson}
-            disabled={busy}
-            onChange={(e) => setSelectedPerson(e.target.value)}
-          >
-            <option value="">Choose an existing person</option>
-            {(["adult", "child"] as const).map((kind) => (
-              <optgroup key={kind} label={kind === "adult" ? "Adults" : "Kids"}>
+        {(["adult", "child"] as const).map((kind) => {
+          const members = records.filter(
+            (p) => p.profileType === kind && rosterIds.includes(p.id),
+          );
+          return (
+            <section
+              key={kind}
+              aria-label={kind === "adult" ? "Adult members" : "Kids members"}
+              className="mt-6"
+            >
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <h3 className="text-lg font-semibold">
+                  {kind === "adult" ? "Adults" : "Kids"}
+                </h3>
+                <p className="text-sm text-muted">
+                  {members.length} members ·{" "}
+                  {
+                    members.filter((p) => participatingIds.includes(p.id))
+                      .length
+                  }{" "}
+                  in the exchange
+                </p>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-3 rounded-xl border border-border bg-surface p-4">
+                <select
+                  className={`${select} flex-1 basis-48`}
+                  aria-label={
+                    kind === "adult" ? "Add adult member" : "Add child member"
+                  }
+                  value={selectedPeople[kind]}
+                  disabled={busy}
+                  onChange={(e) =>
+                    setSelectedPeople((current) => ({
+                      ...current,
+                      [kind]: e.target.value,
+                    }))
+                  }
+                >
+                  <option value="">
+                    Choose an existing {kind === "adult" ? "adult" : "child"}
+                  </option>
+                  {records
+                    .filter(
+                      (p) =>
+                        p.active &&
+                        p.profileType === kind &&
+                        (kind === "child" || p.hasAccount) &&
+                        !rosterIds.includes(p.id),
+                    )
+                    .map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {name(p.id)}
+                      </option>
+                    ))}
+                </select>
+                <button
+                  className={button}
+                  disabled={busy || !selectedPeople[kind]}
+                  onClick={async () => {
+                    if (
+                      await act({
+                        action: "add-member",
+                        personId: Number(selectedPeople[kind]),
+                      })
+                    )
+                      setSelectedPeople((current) => ({
+                        ...current,
+                        [kind]: "",
+                      }));
+                  }}
+                >
+                  Add {kind === "adult" ? "adult" : "child"}
+                </button>
+                <p className="basis-full text-sm text-muted">
+                  {kind === "adult"
+                    ? "New adults start outside the exchange."
+                    : "Adding or linking a child profile does not automatically add them to this group or draw."}
+                </p>
+              </div>
+              <ul
+                aria-label={kind === "adult" ? "Adult roster" : "Kids roster"}
+                className="mt-4 grid gap-3 min-[480px]:grid-cols-2"
+              >
                 {records
                   .filter(
-                    (p) =>
-                      p.active &&
-                      p.profileType === kind &&
-                      (kind === "child" || p.hasAccount) &&
-                      !rosterIds.includes(p.id),
+                    (p) => p.profileType === kind && rosterIds.includes(p.id),
                   )
-                  .map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {name(p.id)}
-                    </option>
-                  ))}
-              </optgroup>
-            ))}
-          </select>
-          <button
-            className={button}
-            disabled={busy || !selectedPerson}
-            onClick={async () => {
-              if (
-                await act({
-                  action: "add-member",
-                  personId: Number(selectedPerson),
-                })
-              )
-                setSelectedPerson("");
-            }}
-          >
-            Add member
-          </button>
-          <p className="basis-full text-sm text-muted">
-            New members start outside the exchange. Add adults and children
-            separately.
-          </p>
-        </div>
-        <ul
-          aria-label="Member roster"
-          className="mt-4 grid gap-3 md:grid-cols-2"
-        >
-          {records
-            .filter((p) => rosterIds.includes(p.id))
-            .map((p) => {
-              const participating = participatingIds.includes(p.id);
-              return (
-                <li
-                  key={p.id}
-                  className="min-w-0 rounded-xl border border-border bg-surface p-4 shadow-sm"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="break-words font-semibold">{name(p.id)}</p>
-                      <p className="mt-1 text-sm text-muted">
-                        {p.profileType === "adult" ? "Adult" : "Child"}
-                        {!p.active && " · Inactive"}
-                      </p>
-                    </div>
-                    <button
-                      className="shrink-0 rounded px-2 py-1 text-sm text-muted hover:text-accent disabled:opacity-50"
-                      aria-label={`Remove ${name(p.id)} from group`}
-                      disabled={busy}
-                      onClick={() => {
-                        if (
-                          window.confirm(
-                            `Remove ${name(p.id)} from this group? Their profile and saved draw history will be kept.`,
-                          )
-                        )
-                          void act({ action: "remove-member", personId: p.id });
-                      }}
-                    >
-                      Remove
-                    </button>
-                  </div>
-                  <label className="mt-4 flex min-h-11 cursor-pointer items-center gap-3 rounded-lg bg-background px-3 py-2 text-sm font-medium">
-                    <input
-                      type="checkbox"
-                      className="h-4 w-4 accent-primary"
-                      aria-label={`In the exchange: ${name(p.id)}`}
-                      checked={participating}
-                      disabled={busy || (!p.active && !participating)}
-                      onChange={async (e) => {
-                        const next = e.target.checked;
-                        setParticipatingIds((current) =>
-                          next
-                            ? [...new Set([...current, p.id])]
-                            : current.filter((id) => id !== p.id),
-                        );
-                        if (
-                          !(await act({
-                            action: "participation",
-                            personId: p.id,
-                            enabled: next,
-                          }))
-                        )
-                          setParticipatingIds((current) =>
-                            participating
-                              ? [...new Set([...current, p.id])]
-                              : current.filter((id) => id !== p.id),
-                          );
-                      }}
-                    />
-                    <span>
-                      In the {p.profileType === "child" ? "kids’ " : ""}exchange
-                    </span>
-                  </label>
-                </li>
-              );
-            })}
-        </ul>
-        {rosterIds.length === 0 && (
-          <p className="mt-4 rounded-xl border border-dashed border-border p-6 text-center text-muted">
-            No members yet. Add a person above to get started.
-          </p>
-        )}
+                  .map((p) => {
+                    const participating = participatingIds.includes(p.id);
+                    return (
+                      <li
+                        key={p.id}
+                        className="min-w-0 rounded-xl border border-border bg-surface p-3 shadow-sm"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="break-words font-semibold">
+                              {name(p.id)}
+                            </p>
+                            <p className="mt-1 text-sm text-muted">
+                              {p.profileType === "adult" ? "Adult" : "Child"}
+                              {!p.active && " · Inactive"}
+                            </p>
+                          </div>
+                          <button
+                            className="shrink-0 rounded px-2 py-1 text-sm text-muted hover:text-accent disabled:opacity-50"
+                            aria-label={`Remove ${name(p.id)} from group`}
+                            disabled={busy}
+                            onClick={() => {
+                              if (
+                                window.confirm(
+                                  `Remove ${name(p.id)} from this group? Their profile and saved draw history will be kept.`,
+                                )
+                              )
+                                void act({
+                                  action: "remove-member",
+                                  personId: p.id,
+                                });
+                            }}
+                          >
+                            Remove
+                          </button>
+                        </div>
+                        <label className="mt-2 flex min-h-11 cursor-pointer items-center gap-3 rounded-lg bg-background px-3 py-2 text-sm font-medium">
+                          <input
+                            type="checkbox"
+                            className="h-4 w-4 shrink-0 accent-primary"
+                            aria-label={`In the exchange: ${name(p.id)}`}
+                            checked={participating}
+                            disabled={busy || (!p.active && !participating)}
+                            onChange={async (e) => {
+                              const next = e.target.checked;
+                              setParticipatingIds((current) =>
+                                next
+                                  ? [...new Set([...current, p.id])]
+                                  : current.filter((id) => id !== p.id),
+                              );
+                              if (
+                                !(await act({
+                                  action: "participation",
+                                  personId: p.id,
+                                  enabled: next,
+                                }))
+                              )
+                                setParticipatingIds((current) =>
+                                  participating
+                                    ? [...new Set([...current, p.id])]
+                                    : current.filter((id) => id !== p.id),
+                                );
+                            }}
+                          />
+                          <span>
+                            In the {p.profileType === "child" ? "kids’ " : ""}
+                            exchange
+                          </span>
+                        </label>
+                      </li>
+                    );
+                  })}
+              </ul>
+              {members.length === 0 && (
+                <p className="mt-4 rounded-xl border border-dashed border-border p-5 text-center text-sm text-muted">
+                  No {kind === "adult" ? "adults" : "kids"} in this group yet.
+                </p>
+              )}
+            </section>
+          );
+        })}
       </section>
       <section className="mt-8">
         <h2 className="text-xl font-semibold">Exclusions</h2>

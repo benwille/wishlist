@@ -89,7 +89,7 @@ try {
   await page.getByRole("button", { name: "Cancel edit", exact: true }).click();
   await page.goto(origin + "/admin/groups/9000");
   const firstGroup = page.getByRole("region", {
-    name: "Group members",
+    name: "Kids members",
     exact: true,
   });
   assert.equal(
@@ -102,9 +102,9 @@ try {
     0,
   );
   await page
-    .getByLabel("Add group member", { exact: true })
+    .getByLabel("Add child member", { exact: true })
     .selectOption(String(kids[0].id));
-  await page.getByRole("button", { name: "Add member", exact: true }).click();
+  await page.getByRole("button", { name: "Add child", exact: true }).click();
   await firstGroup
     .getByRole("button", {
       name: `Remove ${names[0]} Test from group`,
@@ -123,9 +123,9 @@ try {
   await page.waitForFunction(() => !document.querySelector("[aria-busy=true]"));
   for (const kid of [...kids, unrelated]) {
     await page
-      .getByLabel("Add group member", { exact: true })
+      .getByLabel("Add child member", { exact: true })
       .selectOption(String(kid.id));
-    await page.getByRole("button", { name: "Add member", exact: true }).click();
+    await page.getByRole("button", { name: "Add child", exact: true }).click();
     await page
       .getByRole("button", {
         name: `Remove ${kid.firstName} ${kid.lastName} from group`,
@@ -196,11 +196,11 @@ try {
   );
   for (const adult of adultProfiles) {
     await page
-      .getByLabel("Add group member", { exact: true })
+      .getByLabel("Add adult member", { exact: true })
       .selectOption(String(adult.id));
-    await page.getByRole("button", { name: "Add member", exact: true }).click();
+    await page.getByRole("button", { name: "Add adult", exact: true }).click();
     await page
-      .getByRole("region", { name: "Group members", exact: true })
+      .getByRole("region", { name: "Adult members", exact: true })
       .getByText(`${adult.firstName} ${adult.lastName}`, { exact: true })
       .waitFor();
     await page
