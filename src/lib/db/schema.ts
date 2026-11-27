@@ -196,3 +196,9 @@ export const familyListMembers = sqliteTable("family_list_members", {
   groupId: integer("group_id").notNull().references(() => exchangeGroups.id, { onDelete: "cascade" }),
   userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
 }, t => [primaryKey({ columns: [t.groupId, t.userId] })]);
+
+// Group membership survives opting out of either exchange.
+export const groupRoster = sqliteTable("group_roster", {
+  groupId: integer("group_id").notNull().references(() => exchangeGroups.id, { onDelete: "cascade" }),
+  personId: integer("person_id").notNull().references(() => people.id, { onDelete: "cascade" }),
+}, t => [primaryKey({ columns: [t.groupId, t.personId] })]);

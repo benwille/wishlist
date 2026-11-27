@@ -89,21 +89,27 @@ try {
   await page.getByRole("button", { name: "Cancel edit", exact: true }).click();
   await page.goto(origin + "/admin/groups/9000");
   const firstGroup = page.getByRole("region", {
-    name: "Kids members",
+    name: "Group members",
     exact: true,
   });
   assert.equal(
     await firstGroup
-      .getByRole("button", { name: `Remove ${names[0]} Test`, exact: true })
+      .getByRole("button", {
+        name: `Remove ${names[0]} Test from group`,
+        exact: true,
+      })
       .count(),
     0,
   );
   await page
-    .getByLabel("Add child participant", { exact: true })
+    .getByLabel("Add group member", { exact: true })
     .selectOption(String(kids[0].id));
-  await page.getByRole("button", { name: "Add child", exact: true }).click();
+  await page.getByRole("button", { name: "Add member", exact: true }).click();
   await firstGroup
-    .getByRole("button", { name: `Remove ${names[0]} Test`, exact: true })
+    .getByRole("button", {
+      name: `Remove ${names[0]} Test from group`,
+      exact: true,
+    })
     .waitFor();
   const created = await context.request.post(origin + "/api/exchange/groups", {
     data: { name: `Friends ${suffix}` },
@@ -117,15 +123,24 @@ try {
   await page.waitForFunction(() => !document.querySelector("[aria-busy=true]"));
   for (const kid of [...kids, unrelated]) {
     await page
-      .getByLabel("Add child participant", { exact: true })
+      .getByLabel("Add group member", { exact: true })
       .selectOption(String(kid.id));
-    await page.getByRole("button", { name: "Add child", exact: true }).click();
+    await page.getByRole("button", { name: "Add member", exact: true }).click();
     await page
       .getByRole("button", {
-        name: `Remove ${kid.firstName} ${kid.lastName}`,
+        name: `Remove ${kid.firstName} ${kid.lastName} from group`,
         exact: true,
       })
       .waitFor();
+    await page
+      .getByRole("checkbox", {
+        name: `In the exchange: ${kid.firstName} ${kid.lastName}`,
+        exact: true,
+      })
+      .check();
+    await page.waitForFunction(
+      () => !document.querySelector("[aria-busy=true]"),
+    );
   }
   for (const [index, kid] of kids.entries())
     await page
@@ -181,13 +196,22 @@ try {
   );
   for (const adult of adultProfiles) {
     await page
-      .getByLabel("Add adult participant", { exact: true })
+      .getByLabel("Add group member", { exact: true })
       .selectOption(String(adult.id));
-    await page.getByRole("button", { name: "Add adult", exact: true }).click();
+    await page.getByRole("button", { name: "Add member", exact: true }).click();
     await page
-      .getByRole("region", { name: "Adult members", exact: true })
+      .getByRole("region", { name: "Group members", exact: true })
       .getByText(`${adult.firstName} ${adult.lastName}`, { exact: true })
       .waitFor();
+    await page
+      .getByRole("checkbox", {
+        name: `In the exchange: ${adult.firstName} ${adult.lastName}`,
+        exact: true,
+      })
+      .check();
+    await page.waitForFunction(
+      () => !document.querySelector("[aria-busy=true]"),
+    );
   }
   for (const [index, adult] of adultProfiles.entries())
     await page

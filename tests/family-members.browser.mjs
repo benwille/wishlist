@@ -65,18 +65,67 @@ try {
   );
   await page.goto(origin + "/admin/groups/9000");
   const section = page.getByRole("region", {
-    name: "Family members outside the exchange",
+    name: "Group members",
     exact: true,
   });
   await section
-    .getByLabel("Add family member outside exchange", { exact: true })
+    .getByLabel("Add group member", { exact: true })
     .selectOption(String(member.id));
   await section
-    .getByRole("button", { name: "Add family member", exact: true })
+    .getByRole("button", { name: "Add member", exact: true })
     .click();
-  await section
-    .getByText(names[0] + " Test — wishlist only", { exact: true })
-    .waitFor();
+  const card = section
+    .getByRole("listitem")
+    .filter({ hasText: names[0] + " Test" });
+  const participation = card.getByRole("checkbox", {
+    name: "In the exchange: " + names[0] + " Test",
+    exact: true,
+  });
+  await participation.waitFor();
+  assert.equal(await participation.isChecked(), false);
+  await participation.check();
+  await page.waitForFunction(
+    () => document.querySelector('[aria-busy="true"]') === null,
+  );
+  await participation.uncheck();
+  await page.waitForFunction(
+    () => document.querySelector('[aria-busy="true"]') === null,
+  );
+  await page.reload();
+  assert.equal(await participation.isChecked(), false);
+  assert.equal(await card.count(), 1);
+  const mobileColumns = await section
+    .getByRole("list", { name: "Member roster" })
+    .evaluate(
+      (el) => getComputedStyle(el).gridTemplateColumns.split(" ").length,
+    );
+  assert.equal(mobileColumns, 1);
+  await page.setViewportSize({ width: 1100, height: 900 });
+  const desktopColumns = await section
+    .getByRole("list", { name: "Member roster" })
+    .evaluate(
+      (el) => getComputedStyle(el).gridTemplateColumns.split(" ").length,
+    );
+  assert.equal(desktopColumns, 2);
+  assert.ok(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  );
+  await page.screenshot({
+    path: "/tmp/wishlist-browser-feedback-check/unified-roster-desktop.png",
+    fullPage: true,
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  assert.ok(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  );
+  await page.screenshot({
+    path: "/tmp/wishlist-browser-feedback-check/unified-roster-mobile.png",
+    fullPage: true,
+  });
   await parentPage.reload();
   await parentPage.getByRole("link", { name: new RegExp(names[0]) }).click();
   await parentPage.waitForURL(origin + "/lists/" + member.accountId);
@@ -113,19 +162,19 @@ try {
   assert.equal(
     (
       await family.request.post(origin + "/api/exchange/groups/9000/people", {
-        data: { action: "add-family", personId: created[1] },
+        data: { action: "add-member", personId: created[1] },
       })
     ).status(),
     403,
   );
-  await section
-    .getByRole("listitem")
-    .filter({ hasText: names[0] })
-    .getByRole("button", { name: "Remove family access", exact: true })
+  page.once("dialog", (dialog) => dialog.accept());
+  await card
+    .getByRole("button", {
+      name: "Remove " + names[0] + " Test from group",
+      exact: true,
+    })
     .click();
-  await section
-    .getByText(names[0] + " Test — wishlist only", { exact: true })
-    .waitFor({ state: "hidden" });
+  await card.waitFor({ state: "hidden" });
   assert.equal(
     (await parent.request.get(origin + "/lists/" + member.accountId)).status(),
     404,
@@ -136,7 +185,7 @@ try {
     0,
   );
   console.log(
-    "PASS: mobile UI add/remove, reciprocal list access, unrelated-family privacy, no draw entry, admin-only mutation, and direct-link revocation",
+    "PASS: responsive one/two-column roster, checkbox persistence, reciprocal list access, family privacy, admin-only changes and removal revocation",
   );
 } finally {
   await browser.close();

@@ -1,5 +1,5 @@
 import { and, eq, inArray } from "drizzle-orm";
-import { users, exchangeGroupMembers, familyListMembers } from "./schema";
+import { users, people, groupRoster } from "./schema";
 import type { Database } from "./index";
 
 /**
@@ -21,40 +21,27 @@ export async function getVisibleUserIds(
     return rows.map((r) => r.id);
   }
 
-  // Both exchange participants and additional family members share list access.
-  // Sharing one group never grants access to a member's other groups.
+  // Membership, rather than draw participation, controls family list access.
   const myGroups = await db
-    .select({ groupId: exchangeGroupMembers.groupId })
-    .from(exchangeGroupMembers)
-    .where(eq(exchangeGroupMembers.userId, userId))
-    .union(
-      db
-        .select({ groupId: familyListMembers.groupId })
-        .from(familyListMembers)
-        .where(eq(familyListMembers.userId, userId)),
-    );
+    .select({ groupId: groupRoster.groupId })
+    .from(groupRoster)
+    .innerJoin(people, eq(people.id, groupRoster.personId))
+    .where(eq(people.accountId, userId));
   if (!myGroups.length) return [userId];
-  const groupIds = myGroups.map((g) => g.groupId);
   const sharedMembers = await db
-    .select({ userId: exchangeGroupMembers.userId })
-    .from(exchangeGroupMembers)
-    .where(inArray(exchangeGroupMembers.groupId, groupIds))
-    .union(
-      db
-        .select({ userId: familyListMembers.userId })
-        .from(familyListMembers)
-        .where(inArray(familyListMembers.groupId, groupIds)),
-    );
-  const active = await db
-    .select({ id: users.id })
-    .from(users)
+    .selectDistinct({ id: users.id })
+    .from(groupRoster)
+    .innerJoin(people, eq(people.id, groupRoster.personId))
+    .innerJoin(users, eq(users.id, people.accountId))
     .where(
       and(
+        inArray(
+          groupRoster.groupId,
+          myGroups.map((g) => g.groupId),
+        ),
+        eq(people.active, 1),
         eq(users.active, 1),
-        inArray(users.id, [
-          ...new Set([userId, ...sharedMembers.map((m) => m.userId)]),
-        ]),
       ),
     );
-  return [...new Set([userId, ...active.map((u) => u.id)])];
+  return [...new Set([userId, ...sharedMembers.map((u) => u.id)])];
 }

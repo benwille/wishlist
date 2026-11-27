@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import ExchangeDraw from "./ExchangeDraw";
 type Person = {
@@ -24,7 +24,7 @@ export default function GroupPeopleManager({
   groupId,
   records,
   memberIds,
-  familyMemberIds,
+  rosterIds,
   exclusions,
   adultEnabled,
   kidsEnabled,
@@ -34,7 +34,7 @@ export default function GroupPeopleManager({
   groupId: number;
   records: Person[];
   memberIds: number[];
-  familyMemberIds: number[];
+  rosterIds: number[];
   exclusions: Exclusion[];
   adultEnabled: boolean;
   kidsEnabled: boolean;
@@ -42,15 +42,18 @@ export default function GroupPeopleManager({
   kidsYears: number[];
 }) {
   const router = useRouter();
-  const [familySelected, setFamilySelected] = useState("");
+  const [selectedPerson, setSelectedPerson] = useState("");
+  const [participatingIds, setParticipatingIds] = useState(memberIds);
+  const [refreshing, startRefresh] = useTransition();
+  useEffect(() => setParticipatingIds(memberIds), [memberIds]);
   const [enabled, setEnabled] = useState({
     adult: adultEnabled,
     child: kidsEnabled,
   });
-  const [busy, setBusy] = useState(false),
+  const [saving, setBusy] = useState(false),
     [error, setError] = useState("");
-  const [selected, setSelected] = useState({ adult: "", child: "" }),
-    [pairs, setPairs] = useState({ adult: ["", ""], child: ["", ""] });
+  const [pairs, setPairs] = useState({ adult: ["", ""], child: ["", ""] });
+  const busy = saving || refreshing;
   const name = (id: number) => {
     const p = records.find((p) => p.id === id);
     return p ? `${p.firstName} ${p.lastName}` : "Unavailable profile";
@@ -66,7 +69,7 @@ export default function GroupPeopleManager({
       });
       const data = (await res.json()) as { error?: string };
       if (!res.ok) throw new Error(data.error || "Unable to update group");
-      router.refresh();
+      startRefresh(() => router.refresh());
       return true;
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to update group");
@@ -118,9 +121,15 @@ export default function GroupPeopleManager({
           exclusions and saved history are retained.
         </p>
       </section>
-      <section className="mt-8">
+      <section aria-label="Group members" className="mt-8">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-xl font-semibold">Exchange participants</h2>
+          <div>
+            <h2 className="text-xl font-semibold">Group members</h2>
+            <p className="mt-1 text-sm text-muted">
+              {rosterIds.length} members · {participatingIds.length} in the
+              exchange
+            </p>
+          </div>
           <Link
             href="/admin/people"
             className="text-sm text-primary hover:underline"
@@ -128,170 +137,136 @@ export default function GroupPeopleManager({
             Create or edit a person
           </Link>
         </div>
-        <p className="mt-2 text-sm text-muted">
-          Select existing profiles. Adding an adult does not automatically add
-          their children.
+        <p className="mt-3 text-sm text-muted">
+          Everyone stays in the group whether or not they join a draw.
+          Unchecking a member keeps their family access. Saved draws are
+          unchanged.
         </p>
-        <div className="mt-4 grid gap-6 md:grid-cols-2">
-          {(["adult", "child"] as const).map((kind) => (
-            <section
-              id={kind === "child" ? "kids" : undefined}
-              aria-label={kind === "adult" ? "Adult members" : "Kids members"}
-              className="min-w-0 rounded-xl border border-border bg-surface p-5"
-            >
-              <h3 className="text-lg font-semibold">
-                {kind === "adult" ? "Adults" : "Kids"}
-              </h3>
-              <ul className="mt-3 flex flex-wrap gap-2">
+        <div className="mt-4 flex flex-wrap gap-3 rounded-xl border border-border bg-surface p-4">
+          <select
+            className={`${select} flex-1 basis-48`}
+            aria-label="Add group member"
+            value={selectedPerson}
+            disabled={busy}
+            onChange={(e) => setSelectedPerson(e.target.value)}
+          >
+            <option value="">Choose an existing person</option>
+            {(["adult", "child"] as const).map((kind) => (
+              <optgroup key={kind} label={kind === "adult" ? "Adults" : "Kids"}>
                 {records
                   .filter(
-                    (p) => p.profileType === kind && memberIds.includes(p.id),
+                    (p) =>
+                      p.active &&
+                      p.profileType === kind &&
+                      (kind === "child" || p.hasAccount) &&
+                      !rosterIds.includes(p.id),
                   )
                   .map((p) => (
-                    <li
-                      key={p.id}
-                      className="inline-flex max-w-full items-center gap-2 rounded-full bg-primary-light px-3 py-1 text-sm font-medium text-primary-dark"
-                    >
-                      <span className="min-w-0 break-words">{name(p.id)}</span>
-                      <button
-                        className="shrink-0 rounded px-1 text-primary hover:text-accent disabled:opacity-50"
-                        aria-label={`Remove ${name(p.id)}`}
-                        disabled={busy}
-                        onClick={() =>
-                          void act({ action: "remove", personId: p.id })
-                        }
-                      >
-                        ×
-                      </button>
-                    </li>
+                    <option key={p.id} value={p.id}>
+                      {name(p.id)}
+                    </option>
                   ))}
-              </ul>
-              <div className="mt-4 flex flex-wrap gap-3">
-                <select
-                  className={`${select} flex-1`}
-                  aria-label={
-                    kind === "adult"
-                      ? "Add adult participant"
-                      : "Add child participant"
-                  }
-                  value={selected[kind]}
-                  onChange={(e) =>
-                    setSelected({ ...selected, [kind]: e.target.value })
-                  }
-                >
-                  <option value="">
-                    Choose existing {kind === "adult" ? "adult" : "child"}
-                  </option>
-                  {records
-                    .filter(
-                      (p) =>
-                        p.active &&
-                        p.profileType === kind &&
-                        !memberIds.includes(p.id),
-                    )
-                    .map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {name(p.id)}
-                      </option>
-                    ))}
-                </select>
-                <button
-                  className={button}
-                  disabled={busy || !selected[kind]}
-                  onClick={async () => {
-                    if (
-                      await act({
-                        action: "add",
-                        personId: Number(selected[kind]),
-                      })
-                    )
-                      setSelected((current) => ({ ...current, [kind]: "" }));
-                  }}
-                >
-                  Add {kind === "adult" ? "adult" : "child"}
-                </button>
-              </div>
-            </section>
-          ))}
-        </div>
-      </section>
-      <section
-        aria-label="Family members outside the exchange"
-        className="mt-8 rounded-xl border border-border bg-surface p-5"
-      >
-        <h2 className="text-xl font-semibold">
-          Family members outside the exchange
-        </h2>
-        <p className="mt-2 text-sm text-muted">
-          These adults share wishlists with this family without joining the
-          draw. To keep someone out of the draw, also leave them out of Exchange
-          participants above.
-        </p>
-        <ul className="mt-3 space-y-2">
-          {records
-            .filter((p) => familyMemberIds.includes(p.id))
-            .map((p) => (
-              <li
-                key={p.id}
-                className="flex flex-wrap items-center justify-between gap-3"
-              >
-                <span>
-                  {name(p.id)}
-                  {memberIds.includes(p.id)
-                    ? " — also in the exchange"
-                    : " — wishlist only"}
-                </span>
-                <button
-                  className={button}
-                  disabled={busy}
-                  onClick={() =>
-                    void act({ action: "remove-family", personId: p.id })
-                  }
-                >
-                  Remove family access
-                </button>
-              </li>
+              </optgroup>
             ))}
-        </ul>
-        <div className="mt-4 flex flex-wrap gap-3">
-          <select
-            className={`${select} flex-1`}
-            aria-label="Add family member outside exchange"
-            value={familySelected}
-            onChange={(e) => setFamilySelected(e.target.value)}
-          >
-            <option value="">Choose existing adult</option>
-            {records
-              .filter(
-                (p) =>
-                  p.active &&
-                  p.profileType === "adult" &&
-                  p.hasAccount &&
-                  !familyMemberIds.includes(p.id) &&
-                  !memberIds.includes(p.id),
-              )
-              .map((p) => (
-                <option key={p.id} value={p.id}>
-                  {name(p.id)}
-                </option>
-              ))}
           </select>
           <button
             className={button}
-            disabled={busy || !familySelected}
+            disabled={busy || !selectedPerson}
             onClick={async () => {
               if (
                 await act({
-                  action: "add-family",
-                  personId: Number(familySelected),
+                  action: "add-member",
+                  personId: Number(selectedPerson),
                 })
               )
-                setFamilySelected("");
+                setSelectedPerson("");
             }}
           >
-            Add family member
+            Add member
           </button>
+          <p className="basis-full text-sm text-muted">
+            New members start outside the exchange. Add adults and children
+            separately.
+          </p>
         </div>
+        <ul
+          aria-label="Member roster"
+          className="mt-4 grid gap-3 md:grid-cols-2"
+        >
+          {records
+            .filter((p) => rosterIds.includes(p.id))
+            .map((p) => {
+              const participating = participatingIds.includes(p.id);
+              return (
+                <li
+                  key={p.id}
+                  className="min-w-0 rounded-xl border border-border bg-surface p-4 shadow-sm"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="break-words font-semibold">{name(p.id)}</p>
+                      <p className="mt-1 text-sm text-muted">
+                        {p.profileType === "adult" ? "Adult" : "Child"}
+                        {!p.active && " · Inactive"}
+                      </p>
+                    </div>
+                    <button
+                      className="shrink-0 rounded px-2 py-1 text-sm text-muted hover:text-accent disabled:opacity-50"
+                      aria-label={`Remove ${name(p.id)} from group`}
+                      disabled={busy}
+                      onClick={() => {
+                        if (
+                          window.confirm(
+                            `Remove ${name(p.id)} from this group? Their profile and saved draw history will be kept.`,
+                          )
+                        )
+                          void act({ action: "remove-member", personId: p.id });
+                      }}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                  <label className="mt-4 flex min-h-11 cursor-pointer items-center gap-3 rounded-lg bg-background px-3 py-2 text-sm font-medium">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 accent-primary"
+                      aria-label={`In the exchange: ${name(p.id)}`}
+                      checked={participating}
+                      disabled={busy || (!p.active && !participating)}
+                      onChange={async (e) => {
+                        const next = e.target.checked;
+                        setParticipatingIds((current) =>
+                          next
+                            ? [...new Set([...current, p.id])]
+                            : current.filter((id) => id !== p.id),
+                        );
+                        if (
+                          !(await act({
+                            action: "participation",
+                            personId: p.id,
+                            enabled: next,
+                          }))
+                        )
+                          setParticipatingIds((current) =>
+                            participating
+                              ? [...new Set([...current, p.id])]
+                              : current.filter((id) => id !== p.id),
+                          );
+                      }}
+                    />
+                    <span>
+                      In the {p.profileType === "child" ? "kids’ " : ""}exchange
+                    </span>
+                  </label>
+                </li>
+              );
+            })}
+        </ul>
+        {rosterIds.length === 0 && (
+          <p className="mt-4 rounded-xl border border-dashed border-border p-6 text-center text-muted">
+            No members yet. Add a person above to get started.
+          </p>
+        )}
       </section>
       <section className="mt-8">
         <h2 className="text-xl font-semibold">Exclusions</h2>

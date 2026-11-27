@@ -8,6 +8,7 @@ import {
   familyListMembers,
   children,
   groupPeople,
+  groupRoster,
   exchangeGroups,
   exchangeGroupMembers,
   childGroupMembers,
@@ -60,6 +61,129 @@ export async function POST(
             : { adultExchangeEnabled: body.enabled ? 1 : 0 },
         )
         .where(eq(exchangeGroups.id, groupId));
+    } else if (
+      ["add-member", "remove-member", "participation"].includes(
+        body.action ?? "",
+      )
+    ) {
+      const [person] = Number.isSafeInteger(body.personId)
+        ? await db.select().from(people).where(eq(people.id, body.personId!))
+        : [];
+      if (!person) throw new Error("Choose an existing person.");
+      const membership = and(
+        eq(groupRoster.groupId, groupId),
+        eq(groupRoster.personId, person.id),
+      );
+      if (body.action !== "add-member") {
+        const [member] = await db.select().from(groupRoster).where(membership);
+        if (!member)
+          throw new Error("This person is not a member of this group.");
+      }
+      if (body.action === "participation" && typeof body.enabled !== "boolean")
+        throw new Error("Choose whether this person is in the exchange.");
+      if (
+        body.action === "add-member" ||
+        (body.action === "participation" && body.enabled)
+      ) {
+        if (!person.active) throw new Error("Choose an active profile.");
+        if (person.profileType === "adult") {
+          const [account] = person.accountId
+            ? await db
+                .select()
+                .from(users)
+                .where(and(eq(users.id, person.accountId), eq(users.active, 1)))
+            : [];
+          if (!account) throw new Error("Choose an active adult account.");
+        }
+      }
+      if (body.action === "add-member") {
+        await db
+          .insert(groupRoster)
+          .values({ groupId, personId: person.id })
+          .onConflictDoNothing();
+      } else if (person.profileType === "adult") {
+        if (!person.accountId) throw new Error("Adult account is unavailable.");
+        if (body.action === "remove-member") {
+          await db.batch([
+            db
+              .delete(exchangeGroupMembers)
+              .where(
+                and(
+                  eq(exchangeGroupMembers.groupId, groupId),
+                  eq(exchangeGroupMembers.userId, person.accountId),
+                ),
+              ),
+            db
+              .delete(familyListMembers)
+              .where(
+                and(
+                  eq(familyListMembers.groupId, groupId),
+                  eq(familyListMembers.userId, person.accountId),
+                ),
+              ),
+            db.delete(groupRoster).where(membership),
+          ]);
+        } else if (body.enabled) {
+          await db
+            .insert(exchangeGroupMembers)
+            .values({ groupId, userId: person.accountId })
+            .onConflictDoNothing();
+        } else {
+          await db.batch([
+            db
+              .delete(exchangeGroupMembers)
+              .where(
+                and(
+                  eq(exchangeGroupMembers.groupId, groupId),
+                  eq(exchangeGroupMembers.userId, person.accountId),
+                ),
+              ),
+            db
+              .insert(groupRoster)
+              .values({ groupId, personId: person.id })
+              .onConflictDoNothing(),
+          ]);
+        }
+      } else {
+        const [child] = await db
+          .select()
+          .from(children)
+          .where(eq(children.personId, person.id));
+        if (!child) throw new Error("Child profile is unavailable.");
+        if (body.action === "remove-member") {
+          await db.batch([
+            db
+              .delete(childGroupMembers)
+              .where(
+                and(
+                  eq(childGroupMembers.groupId, groupId),
+                  eq(childGroupMembers.childId, child.id),
+                ),
+              ),
+            db.delete(groupRoster).where(membership),
+          ]);
+        } else if (body.enabled) {
+          await db
+            .insert(childGroupMembers)
+            .values({ groupId, childId: child.id })
+            .onConflictDoNothing();
+        } else {
+          await db.batch([
+            db
+              .delete(childGroupMembers)
+              .where(
+                and(
+                  eq(childGroupMembers.groupId, groupId),
+                  eq(childGroupMembers.childId, child.id),
+                ),
+              ),
+            db
+              .insert(groupRoster)
+              .values({ groupId, personId: person.id })
+              .onConflictDoNothing(),
+          ]);
+        }
+      }
     } else if (
       body.action === "add-family" ||
       body.action === "remove-family"

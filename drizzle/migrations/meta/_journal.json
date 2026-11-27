@@ -64,6 +64,13 @@
       "when": 1795816606059,
       "tag": "0008_family_list_members",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1795817717324,
+      "tag": "0009_group_roster",
+      "breakpoints": true
     }
   ]
 }

@@ -667,3 +667,70 @@ test("family wishlist membership grants reciprocal scoped access without enterin
  assert.equal((await act(4,'claim')).status,404);
  assert.deepEqual(await getVisibleUserIds(db,4,false),[4]);
 });
+
+test("unified adult roster preserves membership, wishlist access and saved draws when unchecked", async t => {
+ const {sqlite,binding}=adminFixture(t);
+ const {drizzle}=require('drizzle-orm/d1'),db=drizzle(binding);
+ const {getVisibleUserIds}=require(join(output,'visibility.cjs'));
+ sqlite.exec("INSERT INTO exchange_assignments(group_id,giver_id,receiver_id,year,created_at) VALUES(1,2,3,2025,CURRENT_TIMESTAMP)");
+ const history=sqlite.prepare('SELECT * FROM exchange_assignments').all();
+ assert.equal((await groupPerson({action:'add-member',personId:4},2)).status,403);
+ assert.equal((await groupPerson({action:'participation',personId:4,enabled:true})).status,400);
+ assert.equal((await groupPerson({action:'add-member',personId:4})).status,200);
+ assert.equal(sqlite.prepare('SELECT count(*) n FROM exchange_group_members WHERE user_id=4').get().n,0);
+ for(const enabled of [true,false,true,false]) {
+  assert.equal((await groupPerson({action:'participation',personId:4,enabled})).status,200);
+  assert.equal(sqlite.prepare('SELECT count(*) n FROM exchange_group_members WHERE user_id=4').get().n,Number(enabled));
+  assert.equal(sqlite.prepare('SELECT count(*) n FROM group_roster WHERE person_id=4').get().n,1);
+  assert.ok((await getVisibleUserIds(db,2,false)).includes(4));
+  assert.ok((await getVisibleUserIds(db,4,false)).includes(2));
+ }
+ assert.equal((await groupPerson({action:'participation',personId:2,enabled:false})).status,200);
+ assert.ok((await getVisibleUserIds(db,2,false)).includes(4));
+ assert.deepEqual(sqlite.prepare('SELECT * FROM exchange_assignments').all(),history);
+ assert.equal((await groupPerson({action:'participation',personId:4,enabled:'yes'})).status,400);
+ assert.equal((await groupPerson({action:'remove-member',personId:4})).status,200);
+ assert.ok(!(await getVisibleUserIds(db,2,false)).includes(4));
+ assert.equal(sqlite.prepare('SELECT count(*) n FROM users WHERE id=4').get().n,1);
+ assert.deepEqual(sqlite.prepare('SELECT * FROM exchange_assignments').all(),history);
+});
+
+test("kids stay in the unified roster and linked group when unchecked; removal retains profile and history", async t => {
+ const {sqlite,binding}=adminFixture(t);
+ const created=await peopleRequest({action:'create',profileType:'child',firstName:'Roster',lastName:'Child',guardianIds:[4]});
+ const id=(await created.json()).id;
+ const child=sqlite.prepare('SELECT id FROM children WHERE person_id=?').get(id);
+ assert.equal((await groupPerson({action:'add-member',personId:id})).status,200);
+ assert.equal(sqlite.prepare('SELECT count(*) n FROM child_group_members WHERE child_id=?').get(child.id).n,0);
+ const {drizzle}=require('drizzle-orm/d1'),db=drizzle(binding);
+ assert.deepEqual((await accessibleGroups(db,4,false)).map(g=>g.id),[1]);
+ for(const enabled of [true,false,true,false]) {
+  assert.equal((await groupPerson({action:'participation',personId:id,enabled})).status,200);
+  assert.equal(sqlite.prepare('SELECT count(*) n FROM child_group_members WHERE child_id=?').get(child.id).n,Number(enabled));
+  assert.equal(sqlite.prepare('SELECT count(*) n FROM group_roster WHERE person_id=?').get(id).n,1);
+  assert.deepEqual((await accessibleGroups(db,4,false)).map(g=>g.id),[1]);
+ }
+ assert.equal((await groupPerson({action:'remove-member',personId:id})).status,200);
+ assert.equal(sqlite.prepare('SELECT count(*) n FROM children WHERE id=?').get(child.id).n,1);
+ assert.deepEqual(await accessibleGroups(db,4,false),[]);
+});
+
+test("participation changes roll back atomically if retaining membership fails", async t => {
+ const {sqlite}=adminFixture(t);
+ sqlite.exec("CREATE TRIGGER test_membership_failure BEFORE INSERT ON group_roster WHEN NEW.person_id=2 BEGIN SELECT RAISE(ABORT,'simulated write failure'); END;");
+ assert.equal((await groupPerson({action:'participation',personId:2,enabled:false})).status,400);
+ assert.equal(sqlite.prepare('SELECT count(*) n FROM exchange_group_members WHERE user_id=2').get().n,1);
+ assert.equal(sqlite.prepare('SELECT count(*) n FROM group_roster WHERE person_id=2').get().n,1);
+});
+
+test("unified roster migration preserves participants and legacy wishlist-only members", t => {
+ const sqlite=new DatabaseSync(':memory:');t.after(()=>sqlite.close());
+ for(const migration of migrations.slice(0,-1))sqlite.exec(migration);
+ sqlite.exec("INSERT INTO users(id,first_name,last_name,created_at,updated_at) VALUES(1,'Participant','Test',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP),(2,'WishlistOnly','Test',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP); INSERT INTO exchange_groups(id,name,created_at) VALUES(1,'Existing family',CURRENT_TIMESTAMP); INSERT INTO exchange_group_members(group_id,user_id) VALUES(1,1); INSERT INTO family_list_members(group_id,user_id) VALUES(1,2); INSERT INTO children(id,first_name,last_name) VALUES(1,'Existing','Child'); INSERT INTO child_group_members(group_id,child_id) VALUES(1,1)");
+ const oldMembers=sqlite.prepare('SELECT * FROM group_people ORDER BY person_id').all();
+ sqlite.exec(migrations.at(-1));
+ assert.equal(sqlite.prepare('SELECT count(*) n FROM group_roster').get().n,3);
+ assert.deepEqual(sqlite.prepare('SELECT * FROM group_people ORDER BY person_id').all(),oldMembers);
+ assert.equal(sqlite.prepare('SELECT count(*) n FROM exchange_group_members WHERE user_id=2').get().n,0);
+ assert.equal(sqlite.prepare('PRAGMA foreign_key_check').all().length,0);
+});

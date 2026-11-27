@@ -4,7 +4,7 @@ import {
   people,
   personGuardians,
   users,
-  groupPeople,
+  groupRoster,
   exchangeGroups,
 } from "@/lib/db/schema";
 import type { SessionUser } from "@/lib/auth/session";
@@ -114,10 +114,10 @@ export async function groupIdsForAccount(
     ...new Set(
       (
         await db
-          .select({ id: groupPeople.groupId })
-          .from(groupPeople)
+          .select({ id: groupRoster.groupId })
+          .from(groupRoster)
           .where(
-            inArray(groupPeople.personId, [
+            inArray(groupRoster.personId, [
               self.id,
               ...linked.map((l) => l.id),
             ]),
