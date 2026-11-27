@@ -190,3 +190,9 @@ export const childAssignments = sqliteTable("child_assignments", {
  receiverId: integer("receiver_id").notNull().references(() => children.id),
  year: integer("year").notNull(),
 }, t => [primaryKey({ columns: [t.groupId, t.year, t.giverId] }), uniqueIndex("idx_child_receiver_year").on(t.groupId, t.year, t.receiverId), check("child_no_self", sql`${t.giverId} <> ${t.receiverId}`)]);
+
+// Family wishlist access is independent of the exchange draw roster.
+export const familyListMembers = sqliteTable("family_list_members", {
+  groupId: integer("group_id").notNull().references(() => exchangeGroups.id, { onDelete: "cascade" }),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+}, t => [primaryKey({ columns: [t.groupId, t.userId] })]);

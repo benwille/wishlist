@@ -7,6 +7,7 @@ import { eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import {
   people,
+  familyListMembers,
   children,
   groupPeople,
   exchangeGroups,
@@ -38,6 +39,10 @@ export default async function GroupPage({
     .select()
     .from(groupPeople)
     .where(eq(groupPeople.groupId, groupId));
+  const familyMembers = await db
+    .select()
+    .from(familyListMembers)
+    .where(eq(familyListMembers.groupId, groupId));
   const adultPairs = await db
       .select()
       .from(exchangeExclusions)
@@ -80,8 +85,10 @@ export default async function GroupPage({
       lastName: p.lastName,
       profileType: p.profileType,
       active: p.active,
+      hasAccount: p.accountId !== null,
     })),
     memberIds: members.map((m) => m.personId),
+    familyMemberIds: familyMembers.map((m) => accountPerson.get(m.userId)!),
     exclusions,
     adultEnabled: !!group.adultExchangeEnabled,
     kidsEnabled: !!group.kidsExchangeEnabled,

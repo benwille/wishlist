@@ -9,6 +9,7 @@ type Person = {
   lastName: string;
   profileType: "adult" | "child";
   active: number;
+  hasAccount?: boolean;
 };
 type Exclusion = {
   personId1: number;
@@ -23,6 +24,7 @@ export default function GroupPeopleManager({
   groupId,
   records,
   memberIds,
+  familyMemberIds,
   exclusions,
   adultEnabled,
   kidsEnabled,
@@ -32,6 +34,7 @@ export default function GroupPeopleManager({
   groupId: number;
   records: Person[];
   memberIds: number[];
+  familyMemberIds: number[];
   exclusions: Exclusion[];
   adultEnabled: boolean;
   kidsEnabled: boolean;
@@ -39,6 +42,7 @@ export default function GroupPeopleManager({
   kidsYears: number[];
 }) {
   const router = useRouter();
+  const [familySelected, setFamilySelected] = useState("");
   const [enabled, setEnabled] = useState({
     adult: adultEnabled,
     child: kidsEnabled,
@@ -116,7 +120,7 @@ export default function GroupPeopleManager({
       </section>
       <section className="mt-8">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-xl font-semibold">Members</h2>
+          <h2 className="text-xl font-semibold">Exchange participants</h2>
           <Link
             href="/admin/people"
             className="text-sm text-primary hover:underline"
@@ -209,6 +213,84 @@ export default function GroupPeopleManager({
               </div>
             </section>
           ))}
+        </div>
+      </section>
+      <section
+        aria-label="Family members outside the exchange"
+        className="mt-8 rounded-xl border border-border bg-surface p-5"
+      >
+        <h2 className="text-xl font-semibold">
+          Family members outside the exchange
+        </h2>
+        <p className="mt-2 text-sm text-muted">
+          These adults share wishlists with this family without joining the
+          draw. To keep someone out of the draw, also leave them out of Exchange
+          participants above.
+        </p>
+        <ul className="mt-3 space-y-2">
+          {records
+            .filter((p) => familyMemberIds.includes(p.id))
+            .map((p) => (
+              <li
+                key={p.id}
+                className="flex flex-wrap items-center justify-between gap-3"
+              >
+                <span>
+                  {name(p.id)}
+                  {memberIds.includes(p.id)
+                    ? " — also in the exchange"
+                    : " — wishlist only"}
+                </span>
+                <button
+                  className={button}
+                  disabled={busy}
+                  onClick={() =>
+                    void act({ action: "remove-family", personId: p.id })
+                  }
+                >
+                  Remove family access
+                </button>
+              </li>
+            ))}
+        </ul>
+        <div className="mt-4 flex flex-wrap gap-3">
+          <select
+            className={`${select} flex-1`}
+            aria-label="Add family member outside exchange"
+            value={familySelected}
+            onChange={(e) => setFamilySelected(e.target.value)}
+          >
+            <option value="">Choose existing adult</option>
+            {records
+              .filter(
+                (p) =>
+                  p.active &&
+                  p.profileType === "adult" &&
+                  p.hasAccount &&
+                  !familyMemberIds.includes(p.id) &&
+                  !memberIds.includes(p.id),
+              )
+              .map((p) => (
+                <option key={p.id} value={p.id}>
+                  {name(p.id)}
+                </option>
+              ))}
+          </select>
+          <button
+            className={button}
+            disabled={busy || !familySelected}
+            onClick={async () => {
+              if (
+                await act({
+                  action: "add-family",
+                  personId: Number(familySelected),
+                })
+              )
+                setFamilySelected("");
+            }}
+          >
+            Add family member
+          </button>
         </div>
       </section>
       <section className="mt-8">

@@ -57,6 +57,13 @@
       "when": 1795666020095,
       "tag": "0007_shared_person_profiles",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1795816606059,
+      "tag": "0008_family_list_members",
+      "breakpoints": true
     }
   ]
 }

@@ -4,6 +4,8 @@ import { and, eq, inArray } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import {
   people,
+  users,
+  familyListMembers,
   children,
   groupPeople,
   exchangeGroups,
@@ -58,6 +60,36 @@ export async function POST(
             : { adultExchangeEnabled: body.enabled ? 1 : 0 },
         )
         .where(eq(exchangeGroups.id, groupId));
+    } else if (
+      body.action === "add-family" ||
+      body.action === "remove-family"
+    ) {
+      const [person] = Number.isSafeInteger(body.personId)
+        ? await db.select().from(people).where(eq(people.id, body.personId!))
+        : [];
+      if (!person || person.profileType !== "adult" || !person.accountId)
+        throw new Error("Choose an adult with a wishlist account.");
+      if (body.action === "add-family") {
+        const [account] = await db
+          .select()
+          .from(users)
+          .where(and(eq(users.id, person.accountId), eq(users.active, 1)));
+        if (!person.active || !account)
+          throw new Error("Choose an active adult account.");
+        await db
+          .insert(familyListMembers)
+          .values({ groupId, userId: person.accountId })
+          .onConflictDoNothing();
+      } else {
+        await db
+          .delete(familyListMembers)
+          .where(
+            and(
+              eq(familyListMembers.groupId, groupId),
+              eq(familyListMembers.userId, person.accountId),
+            ),
+          );
+      }
     } else if (body.action === "add" || body.action === "remove") {
       const [person] = Number.isSafeInteger(body.personId)
         ? await db.select().from(people).where(eq(people.id, body.personId!))

@@ -20,6 +20,7 @@ await build({
   absWorkingDir: root,
   entryPoints: {
     claim: "src/app/api/items/[id]/claim/route.ts",
+    visibility: "src/lib/db/queries.ts",
     kids: "src/app/api/exchange/groups/[id]/kids/route.ts",
     peopleApi: "src/app/api/people/route.ts",
     groupPeopleApi: "src/app/api/exchange/groups/[id]/people/route.ts",
@@ -507,7 +508,7 @@ function peopleRequest(body,userId=1,method="POST") {
 }
 function groupPerson(body,userId=1,id="1") {return groupPeopleApi(new NextRequest(`https://wishlist.test/api/exchange/groups/${id}/people`,{method:"POST",headers:{"Content-Type":"application/json",...(userId?{Cookie:`session_id=session-${userId}`}:{})},body:JSON.stringify(body)}),{params:Promise.resolve({id})});}
 test("populated migration preserves colliding adult/child identities, links, claims and draws",t=>{
- const sqlite=new DatabaseSync(":memory:");t.after(()=>sqlite.close());for(const migration of migrations.slice(0,-1))sqlite.exec(migration);
+ const sqlite=new DatabaseSync(":memory:");t.after(()=>sqlite.close());for(const migration of migrations.slice(0,7))sqlite.exec(migration);
  sqlite.exec(`
  INSERT INTO users(id,first_name,last_name,email,password_hash,created_at,updated_at) VALUES (1,'Existing','Adult','adult@example.invalid','saved-hash',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP),(7,'Other','Adult',NULL,NULL,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP);
  INSERT INTO children(id,first_name,last_name) VALUES(1,'Existing','Child'),(7,'Other','Child');
@@ -522,7 +523,7 @@ test("populated migration preserves colliding adult/child identities, links, cla
  INSERT INTO items(id,user_id,name,claimed_by,purchased,year_added,created_at) VALUES(1,1,'Existing claim',7,1,2026,CURRENT_TIMESTAMP);
  `);
  const adultDraws=sqlite.prepare("SELECT * FROM exchange_assignments").all(),childDraws=sqlite.prepare("SELECT * FROM child_assignments").all(),history=sqlite.prepare("SELECT * FROM claim_history").all();
- sqlite.exec(migrations.at(-1));
+ for(const migration of migrations.slice(7)) sqlite.exec(migration);
  assert.deepEqual(sqlite.prepare("SELECT * FROM exchange_assignments").all(),adultDraws);assert.deepEqual(sqlite.prepare("SELECT * FROM child_assignments").all(),childDraws);assert.deepEqual(sqlite.prepare("SELECT * FROM claim_history").all(),history);
  assert.equal(sqlite.prepare("SELECT count(*) n FROM people").get().n,4);assert.equal(sqlite.prepare("SELECT person_id FROM children WHERE id=1").get().person_id,8);assert.equal(sqlite.prepare("SELECT person_id FROM children WHERE id=7").get().person_id,14);
  assert.equal(sqlite.prepare("SELECT count(*) n FROM person_guardians").get().n,3);assert.equal(sqlite.prepare("SELECT count(*) n FROM group_people").get().n,5);assert.equal(sqlite.prepare("SELECT count(*) n FROM group_people WHERE person_id=8").get().n,2);
@@ -632,4 +633,37 @@ test("saved draws show explicit status and Redraw instead of the normal preview 
  assert.match(saved,/Assignments saved for/);assert.match(saved,/View assignments/);assert.match(saved,/Redraw adult draw/);assert.doesNotMatch(saved,/Preview adult draw/);
  const fresh=renderPage(createElement(Draw,{groupId:1,kind:"adult",enabled:true,memberCount:3,savedYears:[]}));assert.match(fresh,/Preview adult draw/);assert.doesNotMatch(fresh,/Assignments saved for/);
  const disabled=renderPage(createElement(Draw,{groupId:1,kind:"child",enabled:false,memberCount:0,savedYears:[year]}));assert.match(disabled,/Assignments saved for/);assert.match(disabled,/View assignments/);assert.doesNotMatch(disabled,/Redraw kids/);
+});
+
+
+test("family wishlist membership grants reciprocal scoped access without entering draws", async t => {
+ const state=adminFixture(t), {sqlite}=state;
+ const {getVisibleUserIds}=require(join(output,"visibility.cjs"));
+ const {drizzle}=require("drizzle-orm/d1"); const db=drizzle(state.binding);
+ sqlite.exec("INSERT INTO users(id,first_name,last_name,created_at,updated_at) VALUES(5,'Unrelated','Family',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP); INSERT INTO exchange_groups(id,name,created_at) VALUES(2,'Other family',CURRENT_TIMESTAMP); INSERT INTO exchange_group_members(group_id,user_id) VALUES(2,5); INSERT INTO sessions(id,user_id,expires_at,created_at) VALUES('session-5',5,'2999-01-01',CURRENT_TIMESTAMP)");
+ assert.ok(!(await getVisibleUserIds(db,2,false)).includes(4));
+ assert.equal((await groupPerson({action:"add-family",personId:4},2)).status,403);
+ assert.equal((await groupPerson({action:"add-family",personId:4},null)).status,401);
+ assert.equal((await groupPerson({action:"add-family",personId:4})).status,200);
+ assert.equal((await groupPerson({action:"add-family",personId:4})).status,200);
+ assert.deepEqual((await getVisibleUserIds(db,2,false)).sort(),[1,2,3,4]);
+ assert.deepEqual((await getVisibleUserIds(db,4,false)).sort(),[1,2,3,4]);
+ assert.deepEqual(await getVisibleUserIds(db,5,false),[5]);
+ assert.ok((await getVisibleUserIds(db,1,true)).includes(5));
+ sqlite.exec("INSERT INTO exchange_group_members(group_id,user_id) VALUES(2,2)");
+ assert.deepEqual((await getVisibleUserIds(db,5,false)).sort(),[2,5]);
+ assert.deepEqual((await getVisibleUserIds(db,4,false)).sort(),[1,2,3,4]);
+
+ assert.equal(sqlite.prepare("SELECT count(*) n FROM exchange_group_members WHERE user_id=4").get().n,0);
+ assert.equal(sqlite.prepare("SELECT count(*) n FROM group_people WHERE person_id=4").get().n,0);
+ assert.equal((await act(4,'claim')).status,200);
+ assert.equal((await act(5,'claim')).status,404);
+ sqlite.exec("UPDATE users SET active=0 WHERE id=4");
+ assert.ok(!(await getVisibleUserIds(db,2,false)).includes(4));
+ assert.equal((await groupPerson({action:"add-family",personId:4})).status,400);
+ sqlite.exec("UPDATE users SET active=1 WHERE id=4");
+ assert.equal((await groupPerson({action:"remove-family",personId:4})).status,200);
+ assert.ok(!(await getVisibleUserIds(db,2,false)).includes(4));
+ assert.equal((await act(4,'claim')).status,404);
+ assert.deepEqual(await getVisibleUserIds(db,4,false),[4]);
 });
